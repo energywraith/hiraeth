@@ -23,6 +23,14 @@ HTML/CSS/JS bundle with no app server.
 - `src/main.ts` — orchestrator: wires up the scene, CRT screen, and
   calibration modules, owns `applyWarp()` (the one place that triggers
   both the calibration overlay update and the Pixi mesh rebuild).
+- `src/calibrationView.ts` — scroll-to-zoom / drag-to-pan for `#scene`
+  while any calibration tool (CRT/mask/hotspots) is active, needed for
+  dense point clusters (e.g. the moon hotspot's 16-point circle) where
+  handles sit too close together to grab at 1x. Applies a CSS transform
+  to `#scene` itself; every calibration tool already reads coordinates
+  via `getBoundingClientRect()` and sizes its SVG via
+  `clientWidth`/`clientHeight`, so none of them needed changes to support
+  this. Double-click resets the view.
 - `src/style.css` — all scene styling (layers, grain, vignette,
   calibration UI).
 - `src/scene/` — background layers that don't depend on Pixi:
@@ -47,6 +55,16 @@ HTML/CSS/JS bundle with no app server.
     the mesh.
   - `calibration.ts` — the calibration UI: dragging handles, keyboard
     shortcuts, the panel with the ready-to-paste code.
+- `src/hotspots/` — clickable scene objects (telescope, moon, posters,
+  computer, floppy disks), see the section below:
+  - `config.ts` — the **single source of truth** for hotspot geometry
+    (`HOTSPOTS`, one named polygon per object).
+  - `interaction.ts` — renders the hover/click layer from `HOTSPOTS`.
+  - `content.ts` — the title/body text each hotspot's overlay shows —
+    the one file to edit to change the copy.
+  - `overlay.ts` — the generic click-to-reveal modal, shared by every
+    hotspot regardless of what it shows.
+  - `calibration.ts` — the drag-to-fit tool for `HOTSPOTS`.
 - `design.md` — full design notes from the sessions: why we made the
   choices we made, what was tried and rejected, what's next.
 
@@ -136,6 +154,42 @@ change it here.
 - **Copy** generates a ready `SKY_MASK` array to paste into
   `src/scene/skyMask.ts`, **Reset** restores the last-saved shape.
 
+## Hotspots — single source of truth for clickable objects
+
+In [`src/hotspots/config.ts`](src/hotspots/config.ts):
+
+```ts
+export const HOTSPOTS: Hotspot[] = [...]; // { id, label, points }, one polygon per clickable object
+```
+
+Same pattern as `SKY_MASK`/`CORNERS`: this is the only place hotspot
+geometry is defined. `interaction.ts` renders one transparent `<button>`
+per hotspot, `clip-path`-ed to its polygon — the clip-path both draws the
+hover highlight (a `backdrop-filter: brightness()` glow scoped to that
+shape) and narrows the button's own hit-testing, so no manual
+point-in-polygon check is needed. Clicking a hotspot opens the shared
+modal from `overlay.ts` with that hotspot's copy from `content.ts`. The
+hotspots layer sits above the CRT screen but below
+`.grain`/`.vignette` — same layering rule as everything else.
+
+Note: `.grain`/`.vignette` need `pointer-events: none` for this to work,
+since they're painted last and would otherwise swallow every click on
+the scene. Keep that in mind if either gets restyled.
+
+**Hotspot calibration mode**, same idea as CRT/mask calibration:
+- the **Hotspots** button or the `h` key (mutually exclusive with
+  **Calibrate**/**Mask**),
+- pick which hotspot to edit from the dropdown or `Tab`/`Shift+Tab`,
+- drag that hotspot's numbered dots (only the selected one gets handles;
+  every hotspot's outline is drawn dim for context) + arrow keys for
+  fine nudges (Shift = bigger step),
+- **Copy** generates the full `HOTSPOTS` array to paste into
+  `src/hotspots/config.ts`, **Reset** restores the last-saved shapes.
+
+The current `HOTSPOTS` polygons are rough placeholders (a box around
+each object) — fit them properly with the calibration tool before
+relying on them.
+
 ## Pixi.js — only for the screen, not the whole scene
 
 A deliberate decision: Pixi (+`pixi-filters`) is used ONLY to render the
@@ -169,6 +223,10 @@ in the browser (Browser pane), not just by reading the code. Watch for:
    module out of it if it gets big.
 3. Optionally: a real window cutout, if the sky itself should move
    behind the glass, not just overlays on top.
+4. Hotspots (`src/hotspots/`) exist for telescope/moon/posters/
+   computer/floppy disks but the polygons are rough placeholders and the
+   overlay copy in `content.ts` is placeholder flavor text — fit the
+   shapes with the calibration tool (`h` key) and rewrite the copy.
 
 ## Collaboration style in this project
 

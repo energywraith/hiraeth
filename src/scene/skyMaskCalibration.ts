@@ -48,10 +48,12 @@ export function initMaskCalibration(els: MaskCalibrationElements, onChange: () =
   }
 
   els.toggleBtn.addEventListener("click", () => {
-    // Mutually exclusive with the CRT screen calibration mode — both toggle
-    // the same handle/panel visuals and would otherwise fight over drag input.
-    document.body.classList.remove("calibrating");
+    // Mutually exclusive with the other calibration modes (CRT screen and
+    // hotspots) — all toggle the same handle/panel visuals and would
+    // otherwise fight over drag input.
+    document.body.classList.remove("calibrating", "calibrating-hotspots");
     document.getElementById("calib")?.classList.remove("active");
+    document.getElementById("hotspotCalib")?.classList.remove("active");
     document.body.classList.toggle(ACTIVE_CLASS);
     els.toggleBtn.classList.toggle("active");
     onChange();

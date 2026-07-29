@@ -66,9 +66,41 @@ body {
 #pixiWrap { position: absolute; inset: 0; pointer-events: none; }
 #pixiWrap canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 
+/* One transparent button per HOTSPOTS entry, clipped to that hotspot's
+   polygon (src/hotspots/interaction.ts sets clip-path per element) — sits
+   above the CRT screen but below grain/vignette so the highlight-on-hover
+   reads as part of the same photo, per the layers-not-sprites rule. */
+.hotspots-layer { position: absolute; inset: 0; }
+.hotspot {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  -webkit-backdrop-filter: brightness(1) saturate(1);
+  backdrop-filter: brightness(1) saturate(1);
+  transition: -webkit-backdrop-filter .15s ease, backdrop-filter .15s ease;
+}
+.hotspot:hover,
+.hotspot:focus-visible {
+  -webkit-backdrop-filter: brightness(1.35) saturate(1.15);
+  backdrop-filter: brightness(1.35) saturate(1.15);
+  outline: none;
+}
+body.calibrating .hotspots-layer,
+body.calibrating-mask .hotspots-layer,
+body.calibrating-hotspots .hotspots-layer {
+  pointer-events: none;
+}
+
 .grain {
   position: absolute;
   inset: -50%;
+  pointer-events: none;
   width: 200%;
   height: 200%;
   opacity: .07;
@@ -83,7 +115,7 @@ body {
   75% { transform: translate(-4%, -4%); }
   100% { transform: translate(6%, 6%); }
 }
-.vignette { position: absolute; inset: 0; box-shadow: inset 0 0 280px 100px rgba(0, 0, 0, .68); }
+.vignette { position: absolute; inset: 0; pointer-events: none; box-shadow: inset 0 0 280px 100px rgba(0, 0, 0, .68); }
 
 /* ---- calibration handles ---- */
 .handle {
@@ -117,6 +149,16 @@ body {
 body.calibrating .handle { display: block; }
 .quad-line { position: absolute; inset: 0; z-index: 19; pointer-events: none; display: none; }
 body.calibrating .quad-line { display: block; }
+
+/* Scroll-to-zoom / drag-to-pan while any calibration tool is active — see
+   src/calibrationView.ts. Cursor hints only show up once there's something
+   to pan (zoomed in past 1x is enforced there, not worth tracking here). */
+body.calibrating .scene,
+body.calibrating-mask .scene,
+body.calibrating-hotspots .scene {
+  cursor: grab;
+}
+.scene.panning { cursor: grabbing; }
 
 /* Sky mask handles reuse the same look as .handle (cyan instead of yellow,
    smaller since the mask has many more points than the CRT's 4 corners) —
@@ -152,6 +194,41 @@ body.calibrating .quad-line { display: block; }
 body.calibrating-mask .mask-handle { display: block; }
 body.calibrating-mask .mask-quad-line { display: block; }
 body.calibrating-mask #maskPanel { display: block; }
+
+/* Hotspot handles reuse the same look as .handle/.mask-handle (magenta, so
+   all three calibration tools stay visually distinct at a glance). Only
+   the currently-selected hotspot's points get handles — see
+   src/hotspots/calibration.ts. */
+.hotspot-handle {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  margin: -8px 0 0 -8px;
+  border-radius: 50%;
+  border: 2px solid #ff6fd8;
+  background: rgba(255, 111, 216, .18);
+  cursor: grab;
+  z-index: 20;
+  display: none;
+  box-shadow: 0 0 0 1px #000, 0 0 8px rgba(0, 0, 0, .6);
+  touch-action: none;
+}
+.hotspot-handle::after {
+  content: attr(data-label);
+  position: absolute;
+  left: 50%;
+  top: -18px;
+  transform: translateX(-50%);
+  font: 700 9px/1 ui-monospace, monospace;
+  color: #ff6fd8;
+  text-shadow: 0 0 3px #000;
+}
+.hotspot-handle:active { cursor: grabbing; }
+.hotspot-handle.sel { border-color: #ffd23f; background: rgba(255, 210, 63, .22); }
+.hotspot-handle.sel::after { color: #ffd23f; }
+body.calibrating-hotspots .hotspot-handle { display: block; }
+body.calibrating-hotspots .hotspot-quad-line { display: block; }
+body.calibrating-hotspots #hotspotPanel { display: block; }
 
 .gate {
   position: fixed;
@@ -205,6 +282,10 @@ body.calibrating #panel { display: block; }
    of the scene — pin it to the left instead so it doesn't cover the very
    thing you're trying to look at while dragging handles. */
 #maskPanel { left: 14px; right: auto; }
+/* Hotspots span both sides of the scene (unlike the mask/telescope, always
+   on the right), so the panel flips side per-selection instead of a fixed
+   spot — see the pin-left toggle in src/hotspots/calibration.ts. */
+#hotspotPanel.pin-left { left: 14px; right: auto; }
 .panel h4 { margin: 0 0 6px; font: 700 11px/1 ui-monospace, monospace; letter-spacing: .12em; text-transform: uppercase; color: #9be7bd; }
 .panel p { margin: 0 0 8px; font: 11px/1.5 ui-monospace, monospace; color: #8695ad; }
 .panel textarea {
@@ -219,7 +300,70 @@ body.calibrating #panel { display: block; }
   font: 11px/1.45 ui-monospace, monospace;
 }
 .panel .row { display: flex; gap: 8px; margin-top: 8px; }
+.panel select {
+  width: 100%;
+  margin-bottom: 8px;
+  background: #070a11;
+  color: #cdd6e6;
+  border: 1px solid #2b3650;
+  border-radius: 6px;
+  padding: 7px 8px;
+  font: 11px/1.4 ui-monospace, monospace;
+}
 .note { position: fixed; right: 14px; bottom: 12px; z-index: 30; font: 11px/1.4 ui-monospace, monospace; color: #5a6b86; text-align: right; }
+.zoom-hint { left: 14px; right: auto; text-align: left; display: none; }
+body.calibrating .zoom-hint,
+body.calibrating-mask .zoom-hint,
+body.calibrating-hotspots .zoom-hint {
+  display: block;
+}
+
+/* ---- hotspot overlay ---- */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: none;
+  place-items: center;
+  background: rgba(4, 6, 12, .72);
+  padding: 24px;
+}
+.overlay.open { display: grid; }
+.overlay-card {
+  position: relative;
+  max-width: 420px;
+  width: 100%;
+  background: #0f1420f2;
+  border: 1px solid #2b3650;
+  border-radius: 12px;
+  padding: 22px 22px 18px;
+  color: #cdd6e6;
+  font: 13px/1.6 ui-monospace, monospace;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, .5);
+}
+.overlay-card h3 {
+  margin: 0 12px 10px 0;
+  font: 700 13px/1.3 ui-monospace, monospace;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: #9be7bd;
+}
+.overlay-card p { margin: 0; }
+.overlay-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid #2b3650;
+  background: #141a26;
+  color: #cdd6e6;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+.overlay-close:hover { border-color: #3f6d57; color: #9be7bd; }
 
 @media (prefers-reduced-motion: reduce) {
   .moon-glow, .grain { animation: none; }

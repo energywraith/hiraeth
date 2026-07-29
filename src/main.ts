@@ -5,6 +5,10 @@ import { initMaskCalibration } from "./scene/skyMaskCalibration";
 import { initScreen } from "./crt/screen";
 import { initCalibration, updateCalibrationOverlay } from "./crt/calibration";
 import { createLoopingMusic } from "./audio/music";
+import { initHotspots } from "./hotspots/interaction";
+import { initOverlay } from "./hotspots/overlay";
+import { initHotspotCalibration } from "./hotspots/calibration";
+import { initCalibrationView } from "./calibrationView";
 
 const scene = document.getElementById("scene") as HTMLElement;
 const pixiWrap = document.getElementById("pixiWrap") as HTMLElement;
@@ -20,6 +24,8 @@ gate.addEventListener(
   },
   { once: true },
 );
+
+initCalibrationView(scene);
 
 const stars = initStarfield(document.getElementById("stars") as HTMLCanvasElement);
 const comet = initComet(document.getElementById("comet") as HTMLElement, document.getElementById("cometWrap") as HTMLElement);
@@ -63,6 +69,36 @@ function applyMaskChange(): void {
 const maskCalibration = initMaskCalibration(maskCalibrationEls, applyMaskChange);
 addEventListener("resize", applyMaskChange);
 applyMaskChange();
+
+const overlay = initOverlay({
+  root: document.getElementById("overlay") as HTMLElement,
+  titleEl: document.getElementById("overlayTitle") as HTMLElement,
+  bodyEl: document.getElementById("overlayBody") as HTMLElement,
+  closeBtn: document.getElementById("overlayClose") as HTMLButtonElement,
+});
+
+const hotspots = initHotspots(document.getElementById("hotspots") as HTMLElement, overlay.open);
+hotspots.update();
+
+const hotspotCalibrationEls = {
+  scene,
+  toggleBtn: document.getElementById("hotspotCalib") as HTMLButtonElement,
+  panel: document.getElementById("hotspotPanel") as HTMLElement,
+  select: document.getElementById("hotspotSelect") as HTMLSelectElement,
+  svg: document.querySelector<SVGSVGElement>("#hotspotQuadLine")!,
+  readout: document.getElementById("hotspotReadout") as HTMLTextAreaElement,
+  copyBtn: document.getElementById("hotspotCopy") as HTMLButtonElement,
+  resetBtn: document.getElementById("hotspotReset") as HTMLButtonElement,
+};
+
+function applyHotspotChange(): void {
+  hotspotCalibration.update();
+  hotspots.update();
+}
+
+const hotspotCalibration = initHotspotCalibration(hotspotCalibrationEls, applyHotspotChange);
+addEventListener("resize", applyHotspotChange);
+applyHotspotChange();
 
 initScreen(scene, pixiWrap, noteEl).then((screen) => {
   rebuildMesh = screen.rebuildMesh;

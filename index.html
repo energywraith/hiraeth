@@ -11,8 +11,10 @@
   <div class="ui">
     <button class="btn" id="calib">calibrate</button>
     <button class="btn" id="maskCalib">mask</button>
+    <button class="btn" id="hotspotCalib">hotspots</button>
   </div>
   <div class="note" id="note">loading pixi…</div>
+  <div class="note zoom-hint">scroll to zoom · drag to pan · dblclick to reset view</div>
 
   <div class="panel" id="panel">
     <h4>Screen corners</h4>
@@ -28,6 +30,14 @@
     <div class="row"><button class="btn" id="maskCopy">copy</button><button class="btn" id="maskReset">reset</button></div>
   </div>
 
+  <div class="panel" id="hotspotPanel">
+    <h4>Hotspots</h4>
+    <p>Pick a hotspot, drag its dots onto the object's edges (<b>Tab</b> = next hotspot). Click a dot, then use ← ↑ → ↓ (Shift = bigger) for fine nudges. Copy into <code>src/hotspots/config.ts</code>.</p>
+    <select id="hotspotSelect"></select>
+    <textarea id="hotspotReadout" readonly></textarea>
+    <div class="row"><button class="btn" id="hotspotCopy">copy</button><button class="btn" id="hotspotReset">reset</button></div>
+  </div>
+
   <div class="scene" id="scene">
     <img class="base" src="/scene.png" alt="">
 
@@ -37,6 +47,8 @@
 
     <div id="pixiWrap"></div>
 
+    <div class="hotspots-layer" id="hotspots"></div>
+
     <svg class="quad-line" id="quadLine"><polygon points="" fill="none" stroke="#ffd23f66" stroke-width="1.5"/></svg>
     <div class="handle" data-i="0" data-label="TL"></div>
     <div class="handle" data-i="1" data-label="TR"></div>
@@ -45,8 +57,18 @@
 
     <svg class="quad-line mask-quad-line" id="maskQuadLine"><polygon points="" fill="none" stroke="#6fd3ff77" stroke-width="1.5"/></svg>
 
+    <svg class="quad-line hotspot-quad-line" id="hotspotQuadLine"></svg>
+
     <div class="grain"></div>
     <div class="vignette"></div>
+  </div>
+
+  <div class="overlay" id="overlay">
+    <div class="overlay-card">
+      <button class="overlay-close" id="overlayClose" aria-label="Close">×</button>
+      <h3 id="overlayTitle"></h3>
+      <div id="overlayBody"></div>
+    </div>
   </div>
 
   <script type="module" src="/src/main.ts"></script>
