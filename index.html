@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>luna dialup</title>
+</head>
+<body>
+  <div class="gate" id="gate"><div class="gate-label">click to enter</div></div>
+
+  <div class="ui">
+    <button class="btn" id="calib">calibrate</button>
+    <button class="btn" id="maskCalib">mask</button>
+  </div>
+  <div class="note" id="note">loading pixi…</div>
+
+  <div class="panel" id="panel">
+    <h4>Screen corners</h4>
+    <p>Drag the 4 dots onto the glass corners. Click a dot, then use ← ↑ → ↓ (Shift = bigger) for fine nudges. Keys <b>1</b>/<b>2</b>/<b>3</b>/<b>4</b> = focus top/right/bottom/left edge, <b>0</b> = all. <b>[</b> / <b>]</b> = less/more bulge on the focused edge. Copy into the source.</p>
+    <textarea id="readout" readonly></textarea>
+    <div class="row"><button class="btn" id="copy">copy</button><button class="btn" id="reset">reset</button></div>
+  </div>
+
+  <div class="panel" id="maskPanel">
+    <h4>Sky mask</h4>
+    <p>Drag the dots onto the window/curtain/telescope edges. Click a dot, then use ← ↑ → ↓ (Shift = bigger) for fine nudges. Copy into <code>src/scene/skyMask.ts</code>.</p>
+    <textarea id="maskReadout" readonly></textarea>
+    <div class="row"><button class="btn" id="maskCopy">copy</button><button class="btn" id="maskReset">reset</button></div>
+  </div>
+
+  <div class="scene" id="scene">
+    <img class="base" src="/scene.png" alt="">
+
+    <canvas id="stars" class="layer"></canvas>
+    <div class="moon-glow"></div>
+    <div id="cometWrap"><div class="comet" id="comet"></div></div>
+
+    <div id="pixiWrap"></div>
+
+    <svg class="quad-line" id="quadLine"><polygon points="" fill="none" stroke="#ffd23f66" stroke-width="1.5"/></svg>
+    <div class="handle" data-i="0" data-label="TL"></div>
+    <div class="handle" data-i="1" data-label="TR"></div>
+    <div class="handle" data-i="2" data-label="BR"></div>
+    <div class="handle" data-i="3" data-label="BL"></div>
+
+    <svg class="quad-line mask-quad-line" id="maskQuadLine"><polygon points="" fill="none" stroke="#6fd3ff77" stroke-width="1.5"/></svg>
+
+    <div class="grain"></div>
+    <div class="vignette"></div>
+  </div>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

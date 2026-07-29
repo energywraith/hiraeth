@@ -1,0 +1,226 @@
+:root { --phosphor: #9be7bd; }
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; background: #000; overflow: hidden; }
+body {
+  display: grid;
+  place-items: center;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+.scene {
+  position: relative;
+  width: min(100vw, 177.78vh);
+  aspect-ratio: 2048 / 1152;
+  overflow: hidden;
+  background: #000;
+}
+.scene img.base { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+.layer { position: absolute; inset: 0; pointer-events: none; }
+
+#stars {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  mix-blend-mode: screen;
+}
+.moon-glow {
+  position: absolute;
+  left: 78%;
+  top: 23.5%;
+  width: 22%;
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  mix-blend-mode: screen;
+  animation: breathe 7s ease-in-out infinite;
+  background: radial-gradient(circle, rgba(214, 228, 255, .28) 0%, rgba(180, 205, 255, .12) 42%, transparent 68%);
+}
+@keyframes breathe { 0%, 100% { opacity: .75; } 50% { opacity: 1; } }
+#cometWrap { position: absolute; inset: 0; }
+.comet {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: #eaf3ff;
+  box-shadow: 0 0 8px 2px #cfe4ff;
+  opacity: 0;
+}
+.comet::after {
+  content: "";
+  position: absolute;
+  right: 2px;
+  top: 50%;
+  width: 90px;
+  height: 1.6px;
+  transform: translateY(-50%);
+  background: linear-gradient(90deg, transparent, rgba(207, 228, 255, .95));
+}
+
+/* The Pixi surface: one full-scene canvas. The screen content is drawn
+   onto a curved mesh (not a flat matrix3d quad) so the edges can bow
+   outward like real CRT glass instead of staying dead straight. */
+#pixiWrap { position: absolute; inset: 0; pointer-events: none; }
+#pixiWrap canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+.grain {
+  position: absolute;
+  inset: -50%;
+  width: 200%;
+  height: 200%;
+  opacity: .07;
+  mix-blend-mode: overlay;
+  animation: grain .5s steps(4) infinite;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+@keyframes grain {
+  0% { transform: translate(0, 0); }
+  25% { transform: translate(-6%, 4%); }
+  50% { transform: translate(4%, -6%); }
+  75% { transform: translate(-4%, -4%); }
+  100% { transform: translate(6%, 6%); }
+}
+.vignette { position: absolute; inset: 0; box-shadow: inset 0 0 280px 100px rgba(0, 0, 0, .68); }
+
+/* ---- calibration handles ---- */
+.handle {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  margin: -11px 0 0 -11px;
+  border-radius: 50%;
+  border: 2px solid #ffd23f;
+  background: rgba(255, 210, 63, .18);
+  cursor: grab;
+  z-index: 20;
+  display: none;
+  box-shadow: 0 0 0 1px #000, 0 0 8px rgba(0, 0, 0, .6);
+  touch-action: none;
+}
+.handle::after {
+  content: attr(data-label);
+  position: absolute;
+  left: 50%;
+  top: -20px;
+  transform: translateX(-50%);
+  font: 700 10px/1 ui-monospace, monospace;
+  color: #ffd23f;
+  text-shadow: 0 0 3px #000;
+  letter-spacing: .08em;
+}
+.handle:active { cursor: grabbing; }
+.handle.sel { border-color: #7ff0b6; background: rgba(127, 240, 182, .22); }
+.handle.sel::after { color: #7ff0b6; }
+body.calibrating .handle { display: block; }
+.quad-line { position: absolute; inset: 0; z-index: 19; pointer-events: none; display: none; }
+body.calibrating .quad-line { display: block; }
+
+/* Sky mask handles reuse the same look as .handle (cyan instead of yellow,
+   smaller since the mask has many more points than the CRT's 4 corners) —
+   kept as separate classes so the two calibration tools' handle sets never
+   collide in the shared `.handle` selector. */
+.mask-handle {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  margin: -8px 0 0 -8px;
+  border-radius: 50%;
+  border: 2px solid #6fd3ff;
+  background: rgba(111, 211, 255, .18);
+  cursor: grab;
+  z-index: 20;
+  display: none;
+  box-shadow: 0 0 0 1px #000, 0 0 8px rgba(0, 0, 0, .6);
+  touch-action: none;
+}
+.mask-handle::after {
+  content: attr(data-label);
+  position: absolute;
+  left: 50%;
+  top: -18px;
+  transform: translateX(-50%);
+  font: 700 9px/1 ui-monospace, monospace;
+  color: #6fd3ff;
+  text-shadow: 0 0 3px #000;
+}
+.mask-handle:active { cursor: grabbing; }
+.mask-handle.sel { border-color: #ffd23f; background: rgba(255, 210, 63, .22); }
+.mask-handle.sel::after { color: #ffd23f; }
+body.calibrating-mask .mask-handle { display: block; }
+body.calibrating-mask .mask-quad-line { display: block; }
+body.calibrating-mask #maskPanel { display: block; }
+
+.gate {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  background: #000;
+  cursor: pointer;
+  transition: opacity .8s ease;
+}
+.gate-label {
+  font: 700 13px/1 ui-monospace, monospace;
+  letter-spacing: .25em;
+  text-transform: uppercase;
+  color: #9be7bd;
+  animation: gate-pulse 2.2s ease-in-out infinite;
+}
+@keyframes gate-pulse { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+.gate.hidden { opacity: 0; pointer-events: none; }
+
+/* ---- UI ---- */
+.ui { position: fixed; left: 14px; top: 14px; z-index: 30; display: flex; gap: 8px; }
+.btn {
+  font: 600 12px/1 ui-monospace, monospace;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: #cdd6e6;
+  background: #141a26;
+  border: 1px solid #2b3650;
+  padding: 9px 13px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.btn:hover { border-color: #3f6d57; color: #9be7bd; }
+.btn.active { border-color: #ffd23f; color: #ffd23f; }
+.panel {
+  position: fixed;
+  right: 14px;
+  top: 64px;
+  z-index: 30;
+  width: 330px;
+  background: #0f1420ee;
+  border: 1px solid #2b3650;
+  border-radius: 10px;
+  padding: 12px;
+  display: none;
+}
+body.calibrating #panel { display: block; }
+/* The mask panel edits the window/telescope, which sit on the right side
+   of the scene — pin it to the left instead so it doesn't cover the very
+   thing you're trying to look at while dragging handles. */
+#maskPanel { left: 14px; right: auto; }
+.panel h4 { margin: 0 0 6px; font: 700 11px/1 ui-monospace, monospace; letter-spacing: .12em; text-transform: uppercase; color: #9be7bd; }
+.panel p { margin: 0 0 8px; font: 11px/1.5 ui-monospace, monospace; color: #8695ad; }
+.panel textarea {
+  width: 100%;
+  height: 118px;
+  resize: vertical;
+  background: #070a11;
+  color: #cdd6e6;
+  border: 1px solid #2b3650;
+  border-radius: 6px;
+  padding: 8px;
+  font: 11px/1.45 ui-monospace, monospace;
+}
+.panel .row { display: flex; gap: 8px; margin-top: 8px; }
+.note { position: fixed; right: 14px; bottom: 12px; z-index: 30; font: 11px/1.4 ui-monospace, monospace; color: #5a6b86; text-align: right; }
+
+@media (prefers-reduced-motion: reduce) {
+  .moon-glow, .grain { animation: none; }
+}
