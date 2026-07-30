@@ -18,11 +18,7 @@ export interface ScreenHandle {
  * mesh. Screen content (boot log -> desktop) is drawn off-stage into a flat
  * texture, then mapped onto the mesh built by ./mesh so it follows the
  * hand-calibrated glass shape. */
-export async function initScreen(
-  scene: HTMLElement,
-  pixiWrap: HTMLElement,
-  noteEl: HTMLElement,
-): Promise<ScreenHandle> {
+export async function initScreen(scene: HTMLElement, pixiWrap: HTMLElement): Promise<ScreenHandle> {
   const app = new PIXI.Application();
   await app.init({ resizeTo: scene, backgroundAlpha: 0, antialias: true });
   pixiWrap.appendChild(app.canvas);
@@ -108,7 +104,6 @@ export async function initScreen(
   });
   const glow = new GlowFilter({ distance: 8, outerStrength: 1.4, innerStrength: 0, color: 0x7ff0b6, quality: 0.4 });
   content.filters = [glow, crt];
-  noteEl.textContent = `CRTFilter + GlowFilter — pixi ${PIXI.VERSION}`;
 
   const contentRT = PIXI.RenderTexture.create({ width: SRC_W, height: SRC_H });
   let mesh: PIXI.Mesh<PIXI.MeshGeometry> | null = null;

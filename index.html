@@ -13,7 +13,6 @@
     <button class="btn" id="maskCalib">mask</button>
     <button class="btn" id="hotspotCalib">hotspots</button>
   </div>
-  <div class="note" id="note">loading pixi…</div>
   <div class="note zoom-hint">scroll to zoom · drag to pan · dblclick to reset view</div>
 
   <div class="panel" id="panel">
@@ -40,7 +39,7 @@
   </div>
 
   <div class="scene" id="scene">
-    <img class="base" src="/scene.png" alt="">
+    <img class="base" src="/scene.png" alt="" draggable="false">
 
     <canvas id="stars" class="layer"></canvas>
     <div class="moon-glow"></div>
