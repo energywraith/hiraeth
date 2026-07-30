@@ -1,5 +1,5 @@
 import type { Point } from "../types";
-import { HOTSPOTS, resetHotspots, setHotspotPoint } from "./config";
+import { HOTSPOTS, insertHotspotPoint, removeHotspotPoint, resetHotspots, setHotspotPoint } from "./config";
 
 interface HotspotCalibrationElements {
   scene: HTMLElement;
@@ -8,6 +8,8 @@ interface HotspotCalibrationElements {
   select: HTMLSelectElement;
   svg: SVGSVGElement;
   readout: HTMLTextAreaElement;
+  addPointBtn: HTMLButtonElement;
+  removePointBtn: HTMLButtonElement;
   copyBtn: HTMLButtonElement;
   resetBtn: HTMLButtonElement;
 }
@@ -34,6 +36,11 @@ export function initHotspotCalibration(els: HotspotCalibrationElements, onChange
     ];
   }
 
+  function markSelected(i: number): void {
+    selPoint = i;
+    handles.forEach((x, hi) => x.classList.toggle("sel", hi === i));
+  }
+
   function rebuildHandles(): void {
     handles.forEach((h) => h.remove());
     selPoint = -1;
@@ -43,10 +50,12 @@ export function initHotspotCalibration(els: HotspotCalibrationElements, onChange
       h.dataset.label = String(i);
       els.scene.appendChild(h);
       h.addEventListener("pointerdown", (e) => {
+        // The hotspot <select> keeps keyboard focus after choosing an
+        // option, which would otherwise swallow the arrow-key nudges below
+        // (a plain <div> handle can't take focus on click to steal it back).
+        els.select.blur();
         drag = i;
-        selPoint = i;
-        handles.forEach((x) => x.classList.remove("sel"));
-        h.classList.add("sel");
+        markSelected(i);
         h.setPointerCapture(e.pointerId);
         e.preventDefault();
       });
@@ -60,6 +69,28 @@ export function initHotspotCalibration(els: HotspotCalibrationElements, onChange
       h.addEventListener("pointerup", () => (drag = -1));
       return h;
     });
+  }
+
+  /** Inserts a point at the midpoint of the edge after the selected one (or
+   * the closing edge if nothing's selected), so a rough box can be refined
+   * into a closer-fitting outline point by point — needed for shapes a
+   * handful of corners can't hug, like the telescope's tube + splayed
+   * tripod legs. */
+  function addPoint(): void {
+    const after = selPoint >= 0 ? selPoint : HOTSPOTS[current].points.length - 1;
+    const newIndex = insertHotspotPoint(current, after);
+    rebuildHandles();
+    markSelected(newIndex);
+    update();
+    onChange();
+  }
+
+  function removePoint(): void {
+    if (selPoint < 0) return;
+    removeHotspotPoint(current, selPoint);
+    rebuildHandles();
+    update();
+    onChange();
   }
 
   function selectHotspot(i: number): void {
@@ -133,6 +164,16 @@ export function initHotspotCalibration(els: HotspotCalibrationElements, onChange
       e.preventDefault();
       return;
     }
+    if (e.key === "+" || e.key === "=") {
+      addPoint();
+      e.preventDefault();
+      return;
+    }
+    if (e.key === "-" || e.key === "_") {
+      removePoint();
+      e.preventDefault();
+      return;
+    }
 
     if (selPoint < 0) return;
     const step = e.shiftKey ? 0.004 : 0.0008;
@@ -150,6 +191,9 @@ export function initHotspotCalibration(els: HotspotCalibrationElements, onChange
       e.preventDefault();
     }
   });
+
+  els.addPointBtn.addEventListener("click", addPoint);
+  els.removePointBtn.addEventListener("click", removePoint);
 
   els.copyBtn.addEventListener("click", () => {
     els.readout.select();

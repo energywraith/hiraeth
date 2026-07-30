@@ -32,9 +32,10 @@
 
   <div class="panel" id="hotspotPanel">
     <h4>Hotspots</h4>
-    <p>Pick a hotspot, drag its dots onto the object's edges (<b>Tab</b> = next hotspot). Click a dot, then use ← ↑ → ↓ (Shift = bigger) for fine nudges. Copy into <code>src/hotspots/config.ts</code>.</p>
+    <p>Pick a hotspot, drag its dots onto the object's edges (<b>Tab</b> = next hotspot). Click a dot, then use ← ↑ → ↓ (Shift = bigger) for fine nudges. If a few corners aren't enough to hug the shape, click a dot and hit <b>+ point</b> (or <b>+</b> key) to add one after it, <b>− point</b> (or <b>-</b> key) to remove the selected one. Copy into <code>src/hotspots/config.ts</code>.</p>
     <select id="hotspotSelect"></select>
     <textarea id="hotspotReadout" readonly></textarea>
+    <div class="row"><button class="btn" id="hotspotAddPoint">+ point</button><button class="btn" id="hotspotRemovePoint">− point</button></div>
     <div class="row"><button class="btn" id="hotspotCopy">copy</button><button class="btn" id="hotspotReset">reset</button></div>
   </div>
 

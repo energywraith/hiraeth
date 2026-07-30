@@ -87,6 +87,8 @@ const hotspotCalibrationEls = {
   select: document.getElementById("hotspotSelect") as HTMLSelectElement,
   svg: document.querySelector<SVGSVGElement>("#hotspotQuadLine")!,
   readout: document.getElementById("hotspotReadout") as HTMLTextAreaElement,
+  addPointBtn: document.getElementById("hotspotAddPoint") as HTMLButtonElement,
+  removePointBtn: document.getElementById("hotspotRemovePoint") as HTMLButtonElement,
   copyBtn: document.getElementById("hotspotCopy") as HTMLButtonElement,
   resetBtn: document.getElementById("hotspotReset") as HTMLButtonElement,
 };
