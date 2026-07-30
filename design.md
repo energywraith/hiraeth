@@ -1,4 +1,4 @@
-# luna-dialup — design notes
+# hiraeth — design notes
 
 ## Goal
 
@@ -164,14 +164,13 @@ layer (background, content, effects) reads from these same values.
 1. **"Click to enter" gate + sound.** Browsers block autoplay with
    audio — needs a full-screen splash screen (very on-vibe — like an
    old splash page) that kicks off the background music on first click.
-   This is also the natural place for the modem sound (the project name
-   is no accident: "luna-dialup").
+   This is also the natural place for the modem sound.
    - ElevenLabs (a tool the user has) is a great fit for the sound
      effects: modem handshake, CRT power-on (click + high-pitched
      whine), ambient room tone, comet whoosh. ElevenLabs only generates
      audio — images still need a different tool (Flux/Midjourney/etc).
 2. **Actual screen content.** Currently a placeholder: a boot log
-   ("LUNA-DIALUP v0.9... CONNECT 56000") that transitions into a very
+   ("HIRAETH v0.9... CONNECT 56000") that transitions into a very
    simple desktop (a bar, a STARFIELD.EXE window, "stars", a clock). To
    figure out: should the screen stay purely decorative, or become
    interactive (clickable icons, mini "apps", a screensaver mode)?

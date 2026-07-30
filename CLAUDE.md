@@ -6,7 +6,7 @@ you're making design decisions, not just technical ones.
 
 ## What this project is
 
-`luna-dialup` — a static vibe site: a nostalgic 90s bedroom with a CRT
+`hiraeth` — a static vibe site: a nostalgic 90s bedroom with a CRT
 computer and a telescope, background music (the user drops that in
 themselves), twinkling stars, a breathing moon, an occasional comet, and
 a live CRT screen rendered with Pixi.js. No backend — the build is Vite +
@@ -71,13 +71,13 @@ HTML/CSS/JS bundle with no app server.
 ## Running locally
 
 ```bash
-cd /Users/daysin/Documents/GitHub/luna-dialup && npm install && npm run dev
+cd /Users/daysin/Documents/GitHub/hiraeth && npm install && npm run dev
 ```
 
 Vite serves on `http://localhost:4173` (the port is set in
 `vite.config.ts` to match the rest of the tooling). The dev server
-config also lives in `.claude/launch.json` (name: `luna`) — you can use
-`preview_start` with the name `luna`.
+config also lives in `.claude/launch.json` (name: `hiraeth`) — you can use
+`preview_start` with the name `hiraeth`.
 
 `npm run build` produces a static bundle in `dist/` (ready to drop on
 any static file host — no changes needed, `pixi.js` and `pixi-filters`

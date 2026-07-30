@@ -39,7 +39,7 @@ export async function initScreen(scene: HTMLElement, pixiWrap: HTMLElement): Pro
   content.addChild(cur);
 
   const lines = [
-    "LUNA-DIALUP v0.9",
+    "HIRAETH v0.9",
     "init modules ..... OK",
     "dialing 56.6k ....",
     "CONNECT 56000",
@@ -63,7 +63,7 @@ export async function initScreen(scene: HTMLElement, pixiWrap: HTMLElement): Pro
   desk.addChild(chrome);
 
   const bar = new PIXI.Text({
-    text: "LUNA-DIALUP     moon: waxing gibbous",
+    text: "HIRAETH     moon: full",
     style: { ...mono, fontSize: 20 },
   });
   bar.x = 34;
