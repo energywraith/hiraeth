@@ -238,3 +238,7 @@ image at full resolution — Claude's job is to provide the calibration
 tool, not guess final values on the user's behalf. Don't treat this file
 as fixed in stone — the priority is a well-kept, well-organized project;
 update CLAUDE.md whenever the structure changes.
+
+**Don't auto-commit.** Make and verify changes, then stop — the user
+commits and pushes themselves when they're ready. Only commit/push when
+they explicitly ask for it in that turn.
