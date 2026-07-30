@@ -23,9 +23,21 @@ export const HOTSPOT_CONTENT: Record<string, HotspotContent> = {
     title: "The computer",
     body: "<p>An old beige tower, humming quietly. The screen's been showing the same thing for years.</p>",
   },
-  "floppy-disks": {
-    title: "Floppy disks",
-    body: "<p>A little stack of 3.5&Prime; disks, unlabeled. Whatever's on them, nobody remembers anymore.</p>",
+  "floppy-disk-1": {
+    title: "Floppy disk",
+    body: "<p>Unlabeled. Could be anything — homework, a game, a mixtape of MIDI files.</p>",
+  },
+  "floppy-disk-2": {
+    title: "Floppy disk",
+    body: "<p>A sliver of masking tape still clings to it, where a label used to be.</p>",
+  },
+  "floppy-disk-3": {
+    title: "Floppy disk",
+    body: "<p>The write-protect tab snapped off years ago. Nobody remembers why.</p>",
+  },
+  "floppy-disk-4": {
+    title: "Floppy disk",
+    body: "<p>The good one — the one that actually still boots.</p>",
   },
   telescope: {
     title: "Telescope",
