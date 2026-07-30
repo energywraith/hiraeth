@@ -15,11 +15,15 @@ const pixiWrap = document.getElementById("pixiWrap") as HTMLElement;
 const gate = document.getElementById("gate") as HTMLElement;
 
 const music = createLoopingMusic(`${import.meta.env.BASE_URL}luna-hiraeth.mp3`, 0.45);
+let entered = false;
+let screenHandle: { start(): void } | null = null;
 gate.addEventListener(
   "click",
   () => {
     gate.classList.add("hidden");
     music.start().catch((err) => console.warn("music failed to load:", err));
+    entered = true;
+    screenHandle?.start();
   },
   { once: true },
 );
@@ -46,6 +50,8 @@ addEventListener("resize", () => rebuildMesh?.(scene));
 initScreen(scene, pixiWrap).then((screen) => {
   rebuildMesh = screen.rebuildMesh;
   rebuildMesh(scene);
+  screenHandle = screen;
+  if (entered) screen.start();
 });
 
 // Calibration tools (drag-to-fit UI for CORNERS/EDGE_BULGE, SKY_MASK, and

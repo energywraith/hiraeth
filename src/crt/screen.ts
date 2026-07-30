@@ -12,6 +12,9 @@ export interface ScreenHandle {
   /** Rebuild the mesh geometry from the current CORNERS/EDGE_BULGE — call
    * after any calibration change or scene resize. */
   rebuildMesh(scene: HTMLElement): void;
+  /** Start the boot-log sequence — call once the visitor dismisses the
+   * gate, so they always see it play from the beginning. */
+  start(): void;
 }
 
 /** Sets up the Pixi app that renders CRT screen content onto the bulged
@@ -129,12 +132,18 @@ export async function initScreen(scene: HTMLElement, pixiWrap: HTMLElement): Pro
     return measurer.width;
   }
 
+  let started = false;
   let booted = false;
   let doneDelay = 0;
   app.ticker.add((tk) => {
     const dt = tk.deltaMS;
     crt.time += dt * 0.006;
     if (Math.random() < 0.03) crt.seed = Math.random();
+
+    if (!started) {
+      app.renderer.render({ container: content, target: contentRT });
+      return;
+    }
 
     if (!booted) {
       acc += dt;
@@ -163,5 +172,10 @@ export async function initScreen(scene: HTMLElement, pixiWrap: HTMLElement): Pro
     app.renderer.render({ container: content, target: contentRT });
   });
 
-  return { rebuildMesh };
+  return {
+    rebuildMesh,
+    start(): void {
+      started = true;
+    },
+  };
 }
