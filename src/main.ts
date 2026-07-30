@@ -14,7 +14,7 @@ const scene = document.getElementById("scene") as HTMLElement;
 const pixiWrap = document.getElementById("pixiWrap") as HTMLElement;
 const gate = document.getElementById("gate") as HTMLElement;
 
-const music = createLoopingMusic("/luna-hiraeth.mp3", 0.45);
+const music = createLoopingMusic(`${import.meta.env.BASE_URL}luna-hiraeth.mp3`, 0.45);
 gate.addEventListener(
   "click",
   () => {
