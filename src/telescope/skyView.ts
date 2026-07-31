@@ -56,11 +56,32 @@ interface Star {
   alpha: number;
 }
 
+// A clickable thing in the sky view: one of the named constellations, or
+// the moon/planet (each a single point rather than a star+line shape, so
+// they're hit-tested and zoomed differently, but share the same hover/
+// click/caption/zoom behavior via this union).
+type Target = { kind: "constellation"; c: Constellation } | { kind: "moon" } | { kind: "planet" };
+
+function sameTarget(a: Target | null, b: Target | null): boolean {
+  if (!a || !b) return a === b;
+  if (a.kind !== b.kind) return false;
+  return a.kind === "constellation" && b.kind === "constellation" ? a.c === b.c : true;
+}
+
 export function initSkyView(els: SkyViewElements): { open: (x: number, y: number) => void; close: () => void } {
   const ctx = els.canvas.getContext("2d");
   if (!ctx) return { open: () => {}, close: () => {} };
   const reduce = matchMedia("(prefers-reduced-motion:reduce)").matches;
   els.captionEl.textContent = CAPTION;
+
+  // Real art (public/moon.png, public/saturn.png) instead of procedural
+  // canvas shapes. Kicked off here so loading starts as soon as the module
+  // runs, not on first open(). render() guards on naturalWidth so a frame
+  // drawn before either finishes loading just skips it rather than throwing.
+  const moonImg = new Image();
+  moonImg.src = `${import.meta.env.BASE_URL}moon.png`;
+  const planetImg = new Image();
+  planetImg.src = `${import.meta.env.BASE_URL}saturn.png`;
 
   let built = false;
   let skyW = 0;
@@ -85,8 +106,8 @@ export function initSkyView(els: SkyViewElements): { open: (x: number, y: number
 
   let lastClientX = innerWidth / 2;
   let lastClientY = innerHeight / 2;
-  let hoveredConstellation: Constellation | null = null;
-  let zoomedConstellation: Constellation | null = null;
+  let hoveredTarget: Target | null = null;
+  let zoomedTarget: Target | null = null;
 
   let isOpen = false;
   let rafId: number | null = null;
@@ -148,47 +169,56 @@ export function initSkyView(els: SkyViewElements): { open: (x: number, y: number
     ctx!.globalAlpha = 1;
   }
 
-  function renderMoon(): void {
+  // Draws `img` centered at (x, y), preserving its aspect ratio, sized so
+  // its width is 2*halfWidth. Skips silently if the sprite hasn't loaded
+  // yet — see the moonImg/planetImg comment above.
+  function drawSprite(img: HTMLImageElement, x: number, y: number, halfWidth: number): void {
+    if (!img.naturalWidth) return;
+    const w = halfWidth * 2;
+    const h = w * (img.naturalHeight / img.naturalWidth);
+    ctx!.drawImage(img, x - w / 2, y - h / 2, w, h);
+  }
+
+  function renderMoon(active: boolean): void {
     const [fx, fy] = MOON.pos;
     const [x, y] = skyToScreen(toSkyX(fx), toSkyY(fy));
     const r = MOON.radius * viewScale;
 
-    const glow = ctx!.createRadialGradient(x, y, 0, x, y, r * 2.6);
-    glow.addColorStop(0, "rgba(214, 228, 255, 0.35)");
+    const glow = ctx!.createRadialGradient(x, y, 0, x, y, r * 1.8);
+    glow.addColorStop(0, `rgba(214, 228, 255, ${active ? 0.28 : 0.16})`);
     glow.addColorStop(1, "rgba(214, 228, 255, 0)");
     ctx!.fillStyle = glow;
     ctx!.beginPath();
     ctx!.arc(x, y, r * 2.6, 0, Math.PI * 2);
     ctx!.fill();
 
-    const disc = ctx!.createRadialGradient(x - r * 0.3, y - r * 0.3, r * 0.1, x, y, r);
-    disc.addColorStop(0, "#fdfdfa");
-    disc.addColorStop(1, "#c9d2df");
-    ctx!.fillStyle = disc;
-    ctx!.beginPath();
-    ctx!.arc(x, y, r, 0, Math.PI * 2);
-    ctx!.fill();
+    drawSprite(moonImg, x, y, r);
+
+    if (active) {
+      ctx!.strokeStyle = "rgba(155, 231, 189, 0.7)";
+      ctx!.lineWidth = 1.5;
+      ctx!.beginPath();
+      ctx!.arc(x, y, r + 6, 0, Math.PI * 2);
+      ctx!.stroke();
+    }
   }
 
-  function renderPlanet(): void {
+  function renderPlanet(active: boolean): void {
     const [fx, fy] = PLANET.pos;
     const [x, y] = skyToScreen(toSkyX(fx), toSkyY(fy));
-    const r = PLANET.radius * viewScale;
+    // Rings included, matching the r*2.1 half-width hit-testing/zoom already
+    // use (see PLANET.radius's comment in constellations.ts).
+    const extent = PLANET.radius * viewScale * 2.1;
 
-    ctx!.save();
-    ctx!.translate(x, y);
-    ctx!.rotate(PLANET.ringTilt);
-    ctx!.strokeStyle = PLANET.ringColor;
-    ctx!.lineWidth = 2 * viewScale;
-    ctx!.beginPath();
-    ctx!.ellipse(0, 0, r * 2.1, r * 0.6, 0, 0, Math.PI * 2);
-    ctx!.stroke();
-    ctx!.restore();
+    drawSprite(planetImg, x, y, extent);
 
-    ctx!.fillStyle = PLANET.color;
-    ctx!.beginPath();
-    ctx!.arc(x, y, r, 0, Math.PI * 2);
-    ctx!.fill();
+    if (active) {
+      ctx!.strokeStyle = "rgba(155, 231, 189, 0.7)";
+      ctx!.lineWidth = 1.5;
+      ctx!.beginPath();
+      ctx!.arc(x, y, extent + 8, 0, Math.PI * 2);
+      ctx!.stroke();
+    }
   }
 
   // Distance from point p to segment ab — used for line click/hover
@@ -219,6 +249,30 @@ export function initSkyView(els: SkyViewElements): { open: (x: number, y: number
     return null;
   }
 
+  const BODY_HIT_PAD = 10;
+
+  // Moon/planet are single points with a screen-pixel-based radius (not
+  // sky-space, unlike constellation stars), so they're hit-tested directly
+  // in screen space against the mouse's client coordinates rather than via
+  // screenToSky() first.
+  function hitTestBody(clientX: number, clientY: number): "moon" | "planet" | null {
+    const [mx, my] = skyToScreen(toSkyX(MOON.pos[0]), toSkyY(MOON.pos[1]));
+    if (Math.hypot(clientX - mx, clientY - my) <= MOON.radius * viewScale + BODY_HIT_PAD) return "moon";
+
+    const [px, py] = skyToScreen(toSkyX(PLANET.pos[0]), toSkyY(PLANET.pos[1]));
+    if (Math.hypot(clientX - px, clientY - py) <= PLANET.radius * 2.1 * viewScale + BODY_HIT_PAD) return "planet";
+
+    return null;
+  }
+
+  function hitTest(clientX: number, clientY: number): Target | null {
+    const body = hitTestBody(clientX, clientY);
+    if (body) return { kind: body };
+    const [skyX, skyY] = screenToSky(clientX, clientY);
+    const c = hitTestConstellation(skyX, skyY);
+    return c ? { kind: "constellation", c } : null;
+  }
+
   function constellationBBox(c: Constellation): { minX: number; minY: number; maxX: number; maxY: number } {
     let minX = Infinity;
     let minY = Infinity;
@@ -240,8 +294,9 @@ export function initSkyView(els: SkyViewElements): { open: (x: number, y: number
     els.captionEl.classList.remove("showing-meaning");
   }
 
-  function showConstellationInfo(c: Constellation): void {
-    els.captionEl.innerHTML = `<strong>${c.name}</strong> — ${c.meaning}`;
+  function showTargetInfo(t: Target): void {
+    const { name, meaning } = t.kind === "constellation" ? t.c : t.kind === "moon" ? MOON : PLANET;
+    els.captionEl.innerHTML = `<strong>${name}</strong> — ${meaning}`;
     els.captionEl.classList.add("showing-meaning");
   }
 
@@ -282,9 +337,12 @@ export function initSkyView(els: SkyViewElements): { open: (x: number, y: number
     ctx!.fillRect(0, 0, innerWidth, innerHeight);
 
     renderStars();
-    renderMoon();
-    renderPlanet();
-    for (const c of CONSTELLATIONS) drawConstellation(c, c === hoveredConstellation || c === zoomedConstellation);
+    renderMoon(hoveredTarget?.kind === "moon" || zoomedTarget?.kind === "moon");
+    renderPlanet(hoveredTarget?.kind === "planet" || zoomedTarget?.kind === "planet");
+    for (const c of CONSTELLATIONS) {
+      const active = sameTarget(hoveredTarget, { kind: "constellation", c }) || sameTarget(zoomedTarget, { kind: "constellation", c });
+      drawConstellation(c, active);
+    }
   }
 
   function measureWorld(): void {
@@ -323,21 +381,32 @@ export function initSkyView(els: SkyViewElements): { open: (x: number, y: number
     targetCY = Math.min(innerHeight / 2 + maxY, Math.max(innerHeight / 2, targetCY));
   }
 
-  function zoomTo(c: Constellation): void {
-    const { minX, minY, maxX, maxY } = constellationBBox(c);
-    const bw = (maxX - minX) * ZOOM_PADDING;
-    const bh = (maxY - minY) * ZOOM_PADDING;
-    const fit = Math.min((innerWidth * ZOOM_FILL) / bw, (innerHeight * ZOOM_FILL) / bh);
-    targetScale = Math.max(1, Math.min(MAX_ZOOM, fit));
-    targetCX = (minX + maxX) / 2;
-    targetCY = (minY + maxY) / 2;
-    zoomedConstellation = c;
+  function zoomTo(t: Target): void {
+    if (t.kind === "constellation") {
+      const { minX, minY, maxX, maxY } = constellationBBox(t.c);
+      const bw = (maxX - minX) * ZOOM_PADDING;
+      const bh = (maxY - minY) * ZOOM_PADDING;
+      const fit = Math.min((innerWidth * ZOOM_FILL) / bw, (innerHeight * ZOOM_FILL) / bh);
+      targetScale = Math.max(1, Math.min(MAX_ZOOM, fit));
+      targetCX = (minX + maxX) / 2;
+      targetCY = (minY + maxY) / 2;
+    } else {
+      const body = t.kind === "moon" ? MOON : PLANET;
+      // The planet's rings (r*2.1) count toward its "size" for framing, the
+      // moon has no rings so its plain radius is used as-is.
+      const bodyRadiusPx = t.kind === "planet" ? PLANET.radius * 2.1 : MOON.radius;
+      const desiredRadius = (Math.min(innerWidth, innerHeight) / 2) * ZOOM_FILL;
+      targetScale = Math.max(1, Math.min(MAX_ZOOM, desiredRadius / (bodyRadiusPx * ZOOM_PADDING)));
+      targetCX = toSkyX(body.pos[0]);
+      targetCY = toSkyY(body.pos[1]);
+    }
+    zoomedTarget = t;
   }
 
   // Eases back out to plain (unscaled) parallax, resuming from wherever the
   // mouse currently sits rather than snapping to the sky's center.
   function zoomOut(): void {
-    zoomedConstellation = null;
+    zoomedTarget = null;
     targetScale = 1;
     const maxX = Math.max(0, skyW - innerWidth);
     const maxY = Math.max(0, skyH - innerHeight);
@@ -351,30 +420,28 @@ export function initSkyView(els: SkyViewElements): { open: (x: number, y: number
     lastClientX = e.clientX;
     lastClientY = e.clientY;
 
-    if (!zoomedConstellation) {
+    if (!zoomedTarget) {
       const maxX = Math.max(0, skyW - innerWidth);
       const maxY = Math.max(0, skyH - innerHeight);
       targetCX = innerWidth / 2 + (e.clientX / innerWidth) * maxX;
       targetCY = innerHeight / 2 + (e.clientY / innerHeight) * maxY;
     }
 
-    const [skyX, skyY] = screenToSky(e.clientX, e.clientY);
-    const hit = hitTestConstellation(skyX, skyY);
+    const hit = hitTest(e.clientX, e.clientY);
     els.canvas.style.cursor = hit ? "pointer" : "";
-    hoveredConstellation = hit;
+    hoveredTarget = hit;
   }
 
   function onClick(e: MouseEvent): void {
     if (!isOpen) return;
-    const [skyX, skyY] = screenToSky(e.clientX, e.clientY);
-    const hit = hitTestConstellation(skyX, skyY);
+    const hit = hitTest(e.clientX, e.clientY);
     if (hit) {
-      showConstellationInfo(hit);
-      if (hit === zoomedConstellation) zoomOut();
+      showTargetInfo(hit);
+      if (sameTarget(hit, zoomedTarget)) zoomOut();
       else zoomTo(hit);
     } else {
       showAmbientCaption();
-      if (zoomedConstellation) zoomOut();
+      if (zoomedTarget) zoomOut();
     }
   }
 
@@ -432,8 +499,8 @@ export function initSkyView(els: SkyViewElements): { open: (x: number, y: number
     els.root.classList.remove("open");
     els.root.style.clipPath = `circle(0px at ${originX}px ${originY}px)`;
     els.canvas.style.cursor = "";
-    hoveredConstellation = null;
-    zoomedConstellation = null;
+    hoveredTarget = null;
+    zoomedTarget = null;
     targetScale = 1;
     showAmbientCaption();
     if (rafId !== null) {
