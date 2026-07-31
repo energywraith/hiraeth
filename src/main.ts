@@ -1,5 +1,5 @@
 import "./style.css";
-import { initStarfield } from "./scene/starfield";
+import { initStarfield, initGateStarfield } from "./scene/starfield";
 import { initComet } from "./scene/comet";
 import { initMaskCalibration } from "./scene/skyMaskCalibration";
 import { initScreen } from "./crt/screen";
@@ -14,6 +14,9 @@ import { initCalibrationView } from "./calibrationView";
 const scene = document.getElementById("scene") as HTMLElement;
 const pixiWrap = document.getElementById("pixiWrap") as HTMLElement;
 const gate = document.getElementById("gate") as HTMLElement;
+
+const gateStars = initGateStarfield(document.getElementById("gateStars") as HTMLCanvasElement);
+addEventListener("resize", () => gateStars.refresh());
 
 const music = createLoopingMusic(`${import.meta.env.BASE_URL}luna-hiraeth.mp3`, 0.45);
 let entered = false;
