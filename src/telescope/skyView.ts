@@ -15,6 +15,16 @@ export interface SkyViewElements {
 const SKY_SCALE = 2.4;
 const PAN_EASE = 0.06;
 
+// The aspect ratio CONSTELLATIONS/MOON/PLANET's fractional coordinates were
+// laid out against. skyW/skyH follow the viewport's own (variable) aspect
+// ratio to give the parallax room to pan, so drawing straight from fx*skyW/
+// fy*skyH would stretch or squeeze every shape whenever a window's aspect
+// ratio differs from whatever it was tuned on. Instead that content is
+// mapped into a fixed-aspect box letterboxed inside skyW/skyH — content
+// keeps its true proportions everywhere, and any leftover margin just shows
+// plain starfield (drawStars already fills the full skyW/skyH regardless).
+const CONTENT_ASPECT = 16 / 9;
+
 export function initSkyView(els: SkyViewElements): { open: (x: number, y: number) => void; close: () => void } {
   const ctx = els.canvas.getContext("2d");
   if (!ctx) return { open: () => {}, close: () => {} };
@@ -24,6 +34,10 @@ export function initSkyView(els: SkyViewElements): { open: (x: number, y: number
   let built = false;
   let skyW = 0;
   let skyH = 0;
+  let contentW = 0;
+  let contentH = 0;
+  let contentOffsetX = 0;
+  let contentOffsetY = 0;
   let panX = 0;
   let panY = 0;
   let targetX = 0;
@@ -48,10 +62,19 @@ export function initSkyView(els: SkyViewElements): { open: (x: number, y: number
     ctx!.globalAlpha = 1;
   }
 
+  // Maps content-space fractions (0-1, laid out against CONTENT_ASPECT) into
+  // sky canvas pixels — see the CONTENT_ASPECT comment above.
+  function toSkyX(fx: number): number {
+    return contentOffsetX + fx * contentW;
+  }
+  function toSkyY(fy: number): number {
+    return contentOffsetY + fy * contentH;
+  }
+
   function drawMoon(): void {
     const [fx, fy] = MOON.pos;
-    const x = fx * skyW;
-    const y = fy * skyH;
+    const x = toSkyX(fx);
+    const y = toSkyY(fy);
     const glow = ctx!.createRadialGradient(x, y, 0, x, y, MOON.radius * 2.6);
     glow.addColorStop(0, "rgba(214, 228, 255, 0.35)");
     glow.addColorStop(1, "rgba(214, 228, 255, 0)");
@@ -71,8 +94,8 @@ export function initSkyView(els: SkyViewElements): { open: (x: number, y: number
 
   function drawPlanet(): void {
     const [fx, fy] = PLANET.pos;
-    const x = fx * skyW;
-    const y = fy * skyH;
+    const x = toSkyX(fx);
+    const y = toSkyY(fy);
     ctx!.save();
     ctx!.translate(x, y);
     ctx!.rotate(PLANET.ringTilt);
@@ -96,22 +119,22 @@ export function initSkyView(els: SkyViewElements): { open: (x: number, y: number
     for (const [a, b] of c.lines) {
       const [ax, ay] = c.stars[a];
       const [bx, by] = c.stars[b];
-      ctx!.moveTo(ax * skyW, ay * skyH);
-      ctx!.lineTo(bx * skyW, by * skyH);
+      ctx!.moveTo(toSkyX(ax), toSkyY(ay));
+      ctx!.lineTo(toSkyX(bx), toSkyY(by));
     }
     ctx!.stroke();
 
     ctx!.fillStyle = "#eaf1ff";
     for (const [fx, fy] of c.stars) {
       ctx!.beginPath();
-      ctx!.arc(fx * skyW, fy * skyH, 1.6, 0, Math.PI * 2);
+      ctx!.arc(toSkyX(fx), toSkyY(fy), 1.6, 0, Math.PI * 2);
       ctx!.fill();
     }
 
     const [lx, ly] = c.stars[c.labelAt];
     ctx!.font = "italic 15px Georgia, 'Times New Roman', serif";
     ctx!.fillStyle = "rgba(155, 231, 189, 0.75)";
-    ctx!.fillText(c.name, lx * skyW + 12, ly * skyH - 8);
+    ctx!.fillText(c.name, toSkyX(lx) + 12, toSkyY(ly) - 8);
   }
 
   function build(): void {
@@ -119,6 +142,16 @@ export function initSkyView(els: SkyViewElements): { open: (x: number, y: number
     skyH = Math.round(innerHeight * SKY_SCALE);
     els.canvas.width = skyW;
     els.canvas.height = skyH;
+
+    if (skyW / skyH > CONTENT_ASPECT) {
+      contentH = skyH;
+      contentW = skyH * CONTENT_ASPECT;
+    } else {
+      contentW = skyW;
+      contentH = skyW / CONTENT_ASPECT;
+    }
+    contentOffsetX = (skyW - contentW) / 2;
+    contentOffsetY = (skyH - contentH) / 2;
 
     ctx!.fillStyle = "#050a14";
     ctx!.fillRect(0, 0, skyW, skyH);

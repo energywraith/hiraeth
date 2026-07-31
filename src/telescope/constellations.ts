@@ -2,8 +2,9 @@ import type { Point } from "../types";
 
 export interface Constellation {
   name: string;
-  /** Fractional (0-1) coordinates within the sky view's virtual canvas —
-   * same convention as HOTSPOTS/SKY_MASK elsewhere in the project. */
+  /** Fractional (0-1) coordinates within the sky view's fixed-aspect content
+   * box (see CONTENT_ASPECT in skyView.ts) — same convention as HOTSPOTS/
+   * SKY_MASK elsewhere in the project, kept aspect-safe across window sizes. */
   stars: Point[];
   /** Index pairs into `stars`, drawn as connecting lines. */
   lines: [number, number][];
