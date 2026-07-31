@@ -467,6 +467,71 @@ body.calibrating-hotspots .zoom-hint {
   100% { opacity: 1; filter: none; }
 }
 
+/* ---- telescope sky view ---- */
+/* The "eyepiece" iris: clip-path is driven from JS (dynamic origin point +
+   covering radius, see src/telescope/skyView.ts) — this just supplies the
+   transition and the resting z-index (between .overlay and .gate). */
+.sky-view {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  background: #02030a;
+  clip-path: circle(0px at 50% 50%);
+  transition: clip-path 1.2s ease-out;
+  pointer-events: none;
+}
+.sky-view.open { pointer-events: auto; }
+.sky-view-port {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+.sky-view-port canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+.sky-view-port::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  box-shadow: inset 0 0 22vw 8vw rgba(0, 0, 0, .82);
+}
+.sky-view-close {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 1;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px solid #2b3650;
+  background: #141a26cc;
+  color: #cdd6e6;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity .4s ease .6s;
+}
+.sky-view.open .sky-view-close { opacity: 1; }
+.sky-view-close:hover { border-color: #3f6d57; color: #9be7bd; }
+.sky-view-caption {
+  position: fixed;
+  left: 50%;
+  bottom: 28px;
+  transform: translateX(-50%);
+  max-width: 420px;
+  text-align: center;
+  font: 13px/1.6 ui-monospace, monospace;
+  color: #8695ad;
+  opacity: 0;
+  transition: opacity .6s ease .7s;
+}
+.sky-view.open .sky-view-caption { opacity: 1; }
+
 @media (prefers-reduced-motion: reduce) {
   .moon-glow, .grain, .flicker-in { animation: none; }
+  .sky-view, .sky-view-close, .sky-view-caption { transition: none; }
 }

@@ -59,12 +59,24 @@ HTML/CSS/JS bundle with no app server.
   computer, floppy disks), see the section below:
   - `config.ts` — the **single source of truth** for hotspot geometry
     (`HOTSPOTS`, one named polygon per object).
-  - `interaction.ts` — renders the hover/click layer from `HOTSPOTS`.
-  - `content.ts` — the title/body text each hotspot's overlay shows —
-    the one file to edit to change the copy.
-  - `overlay.ts` — the generic click-to-reveal modal, shared by every
-    hotspot regardless of what it shows.
+  - `interaction.ts` — renders the hover/click layer from `HOTSPOTS`,
+    routes each click's id/title/body/image/event out to `main.ts`.
+  - `content.ts` — the title/body/image each hotspot's examine panel
+    shows — the one file to edit to change the copy. `image` points at
+    a close-up crop in `public/examine/` (generated from `scene.png`,
+    see the section below).
+  - `overlay.ts` — the generic click-to-reveal examine panel (photo +
+    title + body), shared by every hotspot that doesn't get a bespoke
+    interaction — see `src/telescope/` for the one that does.
   - `calibration.ts` — the drag-to-fit tool for `HOTSPOTS`.
+- `src/telescope/` — the telescope's bespoke "look through the
+  eyepiece" interaction (see the section below), not the generic
+  examine panel:
+  - `constellations.ts` — the **single source of truth** for the sky
+    view's content (`CONSTELLATIONS`, `PLANET`, `MOON`), as fractional
+    coordinates within its virtual canvas.
+  - `skyView.ts` — builds the static starfield canvas, drives the
+    clip-path iris transition, and the mouse-parallax pan loop.
 - `design.md` — full design notes from the sessions: why we made the
   choices we made, what was tried and rejected, what's next.
 
@@ -167,10 +179,12 @@ geometry is defined. `interaction.ts` renders one transparent `<button>`
 per hotspot, `clip-path`-ed to its polygon — the clip-path both draws the
 hover highlight (a `backdrop-filter: brightness()` glow scoped to that
 shape) and narrows the button's own hit-testing, so no manual
-point-in-polygon check is needed. Clicking a hotspot opens the shared
-modal from `overlay.ts` with that hotspot's copy from `content.ts`. The
-hotspots layer sits above the CRT screen but below
-`.grain`/`.vignette` — same layering rule as everything else.
+point-in-polygon check is needed. Clicking a hotspot reports its id up to
+`main.ts`, which opens the shared examine panel (`overlay.ts`) with that
+hotspot's copy from `content.ts` — except `telescope`, which `main.ts`
+routes to `src/telescope/skyView.ts` instead (see below). The hotspots
+layer sits above the CRT screen but below `.grain`/`.vignette` — same
+layering rule as everything else.
 
 Note: `.grain`/`.vignette` need `pointer-events: none` for this to work,
 since they're painted last and would otherwise swallow every click on
@@ -189,6 +203,36 @@ the scene. Keep that in mind if either gets restyled.
 The current `HOTSPOTS` polygons are rough placeholders (a box around
 each object) — fit them properly with the calibration tool before
 relying on them.
+
+## Telescope sky view — the one hotspot with a bespoke interaction
+
+Every hotspot except `telescope` opens the generic examine panel. The
+telescope instead opens `src/telescope/skyView.ts`'s full-screen sky
+view — clicking it should feel like looking through the eyepiece, not
+reading a caption.
+
+- **Entrance/exit**: a `clip-path: circle()` iris, animated from the
+  exact screen point that was clicked out to a JS-computed radius that
+  covers the viewport (`coveringRadius()` in `skyView.ts`), and back to
+  that same point on close. Slow (1.2s) and calm on purpose — an earlier,
+  snappier flicker animation on the examine panels was toned down after
+  user feedback that it broke the calm mood; the sky view was designed
+  slow from the start for the same reason.
+- **Content**: `src/telescope/constellations.ts` is the single source of
+  truth for what's in the sky (`CONSTELLATIONS`, `PLANET`, `MOON`, as
+  fractional coordinates within the sky view's virtual canvas) — same
+  "one file defines the geometry" pattern as `HOTSPOTS`/`SKY_MASK`.
+  Drawn once to a static canvas (no twinkle) sized ~2.4× the viewport,
+  then panned via a single CSS `transform` — cheap, and deliberately
+  calmer than the ambient twinkling background stars.
+- **Panning**: mouse-move parallax (not drag) — moving the mouse aims
+  the "telescope." Lerped toward the target each frame rather than
+  snapping, clamped to the canvas bounds.
+- Purely decorative for v1 — the constellations/planet aren't
+  clickable. A natural next step, not yet built.
+- `.sky-view` sits at `z-index: 45`, between `.overlay` (40) and `.gate`
+  (50) in `src/style.css` — keep that ordering in mind if either of
+  those z-indexes change.
 
 ## Pixi.js — only for the screen, not the whole scene
 
@@ -224,9 +268,15 @@ in the browser (Browser pane), not just by reading the code. Watch for:
 3. Optionally: a real window cutout, if the sky itself should move
    behind the glass, not just overlays on top.
 4. Hotspots (`src/hotspots/`) exist for telescope/moon/posters/
-   computer/floppy disks but the polygons are rough placeholders and the
-   overlay copy in `content.ts` is placeholder flavor text — fit the
-   shapes with the calibration tool (`h` key) and rewrite the copy.
+   computer/floppy disks but the polygons are rough placeholders — fit
+   the shapes with the calibration tool (`h` key). The examine-panel
+   copy in `content.ts` is real, but the close-up images in
+   `public/examine/` are auto-generated crops of `scene.png`, not
+   hand-painted illustrations — swap them per-hotspot later if wanted.
+5. The telescope sky view (`src/telescope/`) is decorative-only right
+   now — the constellations/planet aren't clickable. Other hotspots
+   (moon, computer) were floated as candidates for their own bespoke
+   interactions too, same idea as the telescope, not yet built.
 
 ## Collaboration style in this project
 

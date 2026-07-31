@@ -8,6 +8,7 @@ import { createLoopingMusic } from "./audio/music";
 import { initHotspots } from "./hotspots/interaction";
 import { initOverlay } from "./hotspots/overlay";
 import { initHotspotCalibration } from "./hotspots/calibration";
+import { initSkyView } from "./telescope/skyView";
 import { initCalibrationView } from "./calibrationView";
 
 const scene = document.getElementById("scene") as HTMLElement;
@@ -42,7 +43,22 @@ const overlay = initOverlay({
   imageEl: document.getElementById("overlayImage") as HTMLImageElement,
   closeBtn: document.getElementById("overlayClose") as HTMLButtonElement,
 });
-const hotspots = initHotspots(document.getElementById("hotspots") as HTMLElement, overlay.open);
+const skyView = initSkyView({
+  root: document.getElementById("skyView") as HTMLElement,
+  canvas: document.getElementById("skyViewCanvas") as HTMLCanvasElement,
+  closeBtn: document.getElementById("skyViewClose") as HTMLButtonElement,
+  captionEl: document.getElementById("skyViewCaption") as HTMLElement,
+});
+addEventListener("keydown", (e) => {
+  if (e.key === "Escape") skyView.close();
+});
+const hotspots = initHotspots(document.getElementById("hotspots") as HTMLElement, (id, title, body, image, e) => {
+  if (id === "telescope") {
+    skyView.open(e.clientX, e.clientY, body);
+  } else {
+    overlay.open(title, body, image);
+  }
+});
 hotspots.update();
 
 let rebuildMesh: ((scene: HTMLElement) => void) | null = null;
