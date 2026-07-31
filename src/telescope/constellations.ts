@@ -10,6 +10,9 @@ export interface Constellation {
   lines: [number, number][];
   /** Index into `stars` the label is anchored near. */
   labelAt: number;
+  /** Shown in the sky view's caption when the constellation is clicked —
+   * see the click handling in skyView.ts. */
+  meaning: string;
 }
 
 // Stylized, not astronomically precise — recognizable silhouettes rather
@@ -37,6 +40,7 @@ export const CONSTELLATIONS: Constellation[] = [
       [6, 3],
     ],
     labelAt: 0,
+    meaning: "Really the tail and haunch of Ursa Major, the Great Bear. Follow the front edge of the bowl and it points straight at Polaris — the one star that never moves.",
   },
 {
   name: "cassiopeia",
@@ -54,6 +58,7 @@ export const CONSTELLATIONS: Constellation[] = [
     [3, 4],
   ],
   labelAt: 4,
+  meaning: "A queen who bragged her beauty outshone the sea nymphs', chained to a throne in the sky for it — spends half the year turned upside-down.",
 }
 ];
 

@@ -530,6 +530,7 @@ body.calibrating-hotspots .zoom-hint {
   transition: opacity .6s ease .7s;
 }
 .sky-view.open .sky-view-caption { opacity: 1; }
+.sky-view-caption strong { color: #9be7bd; font-style: normal; }
 
 @media (prefers-reduced-motion: reduce) {
   .moon-glow, .grain, .flicker-in { animation: none; }
