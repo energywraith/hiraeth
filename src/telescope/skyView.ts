@@ -1,4 +1,4 @@
-import { CONSTELLATIONS, MOON, PLANET, type Constellation } from "./constellations";
+import { CAPTION, CONSTELLATIONS, MOON, PLANET, type Constellation } from "./constellations";
 
 export interface SkyViewElements {
   root: HTMLElement;
@@ -15,10 +15,11 @@ export interface SkyViewElements {
 const SKY_SCALE = 2.4;
 const PAN_EASE = 0.06;
 
-export function initSkyView(els: SkyViewElements): { open: (x: number, y: number, captionHtml: string) => void; close: () => void } {
+export function initSkyView(els: SkyViewElements): { open: (x: number, y: number) => void; close: () => void } {
   const ctx = els.canvas.getContext("2d");
   if (!ctx) return { open: () => {}, close: () => {} };
   const reduce = matchMedia("(prefers-reduced-motion:reduce)").matches;
+  els.captionEl.textContent = CAPTION;
 
   let built = false;
   let skyW = 0;
@@ -172,12 +173,11 @@ export function initSkyView(els: SkyViewElements): { open: (x: number, y: number
     return max + 40;
   }
 
-  function open(x: number, y: number, captionHtml: string): void {
+  function open(x: number, y: number): void {
     if (!built) build();
     clampTarget();
     originX = x;
     originY = y;
-    els.captionEl.innerHTML = captionHtml;
     isOpen = true;
 
     const radius = coveringRadius(x, y);

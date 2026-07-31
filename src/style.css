@@ -524,7 +524,7 @@ body.calibrating-hotspots .zoom-hint {
   transform: translateX(-50%);
   max-width: 420px;
   text-align: center;
-  font: 13px/1.6 ui-monospace, monospace;
+  font: italic 400 14px/1.6 Georgia, "Times New Roman", serif;
   color: #8695ad;
   opacity: 0;
   transition: opacity .6s ease .7s;

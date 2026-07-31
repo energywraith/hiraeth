@@ -37,23 +37,23 @@ export const CONSTELLATIONS: Constellation[] = [
     ],
     labelAt: 0,
   },
-  {
-    name: "cassiopeia",
-    stars: [
-      [0.680, 0.144], // Segin
-      [0.715, 0.120], // Ruchbah
-      [0.750, 0.138], // Gamma Cas
-      [0.785, 0.122], // Schedar
-      [0.820, 0.136], // Caph
-    ],
-    lines: [
-      [0, 1],
-      [1, 2],
-      [2, 3],
-      [3, 4],
-    ],
-    labelAt: 4,
-  },
+{
+  name: "cassiopeia",
+  stars: [
+    [0.710, 0.112],
+    [0.725, 0.150],
+    [0.745, 0.147],
+    [0.760, 0.180],
+    [0.775, 0.155],
+  ],
+  lines: [
+    [0, 1],
+    [1, 2],
+    [2, 3],
+    [3, 4],
+  ],
+  labelAt: 4,
+}
 ];
 
 export const PLANET = {
@@ -68,3 +68,5 @@ export const MOON = {
   pos: [0.78, 0.70] as Point,
   radius: 46,
 };
+
+export const CAPTION = "Same sky, most nights. Somehow it never stopped being worth looking at.";

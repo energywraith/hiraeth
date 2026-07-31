@@ -54,7 +54,7 @@ addEventListener("keydown", (e) => {
 });
 const hotspots = initHotspots(document.getElementById("hotspots") as HTMLElement, (id, title, body, image, e) => {
   if (id === "telescope") {
-    skyView.open(e.clientX, e.clientY, body);
+    skyView.open(e.clientX, e.clientY);
   } else {
     overlay.open(title, body, image);
   }

@@ -25,7 +25,7 @@ export const HOTSPOT_CONTENT: Record<string, HotspotContent> = {
   },
   "poster-map": {
     title: "Moon map",
-    body: "<p>A printed lunar surface map — every crater labeled in tiny type nobody's actually read.</p>",
+    body: "<p>A printed lunar surface map. Every crater labeled in tiny type nobody's actually read.</p>",
     image: examine("poster-map"),
   },
   computer: {
@@ -35,7 +35,7 @@ export const HOTSPOT_CONTENT: Record<string, HotspotContent> = {
   },
   "floppy-disk-1": {
     title: "Floppy disk",
-    body: "<p>Unlabeled. Could be anything — homework, a game, a mixtape of MIDI files.</p>",
+    body: "<p>Unlabeled. Could be anything: homework, a game, a mixtape of MIDI files.</p>",
     image: examine("floppy-disk-1"),
   },
   "floppy-disk-2": {
@@ -50,7 +50,7 @@ export const HOTSPOT_CONTENT: Record<string, HotspotContent> = {
   },
   "floppy-disk-4": {
     title: "Floppy disk",
-    body: "<p>The good one — the one that actually still boots.</p>",
+    body: "<p>The good one: the one that actually still boots.</p>",
     image: examine("floppy-disk-4"),
   },
   telescope: {
