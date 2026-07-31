@@ -5,7 +5,7 @@ import { HOTSPOT_CONTENT } from "./content";
  * clip-path both draws the highlight-on-hover shape (via CSS) and narrows
  * the button's own hit-testing to that shape, so no manual point-in-polygon
  * check is needed for hover/click. */
-export function initHotspots(container: HTMLElement, onOpen: (title: string, body: string) => void): { update: () => void } {
+export function initHotspots(container: HTMLElement, onOpen: (title: string, body: string, image: string) => void): { update: () => void } {
   const els = HOTSPOTS.map((h) => {
     const el = document.createElement("button");
     el.type = "button";
@@ -13,7 +13,7 @@ export function initHotspots(container: HTMLElement, onOpen: (title: string, bod
     el.setAttribute("aria-label", h.label);
     el.addEventListener("click", () => {
       const content = HOTSPOT_CONTENT[h.id];
-      if (content) onOpen(content.title, content.body);
+      if (content) onOpen(content.title, content.body, content.image);
     });
     container.appendChild(el);
     return el;

@@ -39,6 +39,7 @@ const overlay = initOverlay({
   root: document.getElementById("overlay") as HTMLElement,
   titleEl: document.getElementById("overlayTitle") as HTMLElement,
   bodyEl: document.getElementById("overlayBody") as HTMLElement,
+  imageEl: document.getElementById("overlayImage") as HTMLImageElement,
   closeBtn: document.getElementById("overlayClose") as HTMLButtonElement,
 });
 const hotspots = initHotspots(document.getElementById("hotspots") as HTMLElement, overlay.open);

@@ -375,7 +375,7 @@ body.calibrating-hotspots .zoom-hint {
 .overlay.open { display: grid; }
 .overlay-card {
   position: relative;
-  max-width: 420px;
+  max-width: 460px;
   width: 100%;
   background: #0f1420f2;
   border: 1px solid #2b3650;
@@ -386,13 +386,12 @@ body.calibrating-hotspots .zoom-hint {
   box-shadow: 0 20px 60px rgba(0, 0, 0, .5);
 }
 .overlay-card h3 {
-  margin: 0 12px 10px 0;
-  font: 700 13px/1.3 ui-monospace, monospace;
-  letter-spacing: .08em;
-  text-transform: uppercase;
+  margin: 0 0 8px;
+  font: italic 400 20px/1.25 Georgia, "Times New Roman", serif;
+  letter-spacing: .01em;
   color: #9be7bd;
 }
-.overlay-card p { margin: 0; }
+.overlay-card p { margin: 0; color: #8695ad; }
 .overlay-close {
   position: absolute;
   top: 10px;
@@ -406,9 +405,68 @@ body.calibrating-hotspots .zoom-hint {
   font-size: 16px;
   line-height: 1;
   cursor: pointer;
+  z-index: 1;
 }
 .overlay-close:hover { border-color: #3f6d57; color: #9be7bd; }
 
+/* The close-up shown at the top of the examine panel — a framed "photo"
+   with its own scanline + inset-vignette treatment, separate from the
+   global .grain/.vignette (which sit inside .scene, below this modal and
+   wouldn't reach it anyway). */
+.examine-image {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 16px;
+  background: #000;
+}
+.examine-image img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: saturate(1.05) contrast(1.04);
+}
+.examine-image::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  box-shadow: inset 0 0 60px 18px rgba(0, 0, 0, .75);
+}
+.examine-image::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  opacity: .1;
+  mix-blend-mode: overlay;
+  background: repeating-linear-gradient(0deg, #fff 0px, #fff 1px, transparent 1px, transparent 3px);
+}
+.verb-tag {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 2;
+  font: 700 10px/1 ui-monospace, monospace;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: #9be7bd;
+  background: rgba(5, 8, 14, .72);
+  border: 1px solid #6f9c82;
+  border-radius: 4px;
+  padding: 5px 8px;
+}
+.flicker-in { animation: examine-flicker 1.4s ease-out; }
+@keyframes examine-flicker {
+  0% { opacity: 0; filter: brightness(1.5) contrast(1.08); }
+  100% { opacity: 1; filter: none; }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .moon-glow, .grain { animation: none; }
+  .moon-glow, .grain, .flicker-in { animation: none; }
 }
