@@ -35,9 +35,19 @@ HTML/CSS/JS bundle with no app server.
   calibration UI).
 - `src/scene/` — background layers that don't depend on Pixi:
   `starfield.ts` (twinkling stars on canvas), `comet.ts` (the occasional
-  comet), `skyMask.ts` (the visible-through-the-window polygon both of
+  comet), `dust.ts` (dust motes drifting through the moonlight, biased
+  toward the lit window side), `skyMask.ts` (the visible-through-the-window polygon both of
   those clip/sample against — see the section below), and
   `skyMaskCalibration.ts` (the drag-to-fit tool for that polygon).
+- `src/audio/bus.ts` — the one `AudioContext` and master gain everything
+  hangs off, plus `setMuted()`. Created lazily on the gate click, since
+  browsers refuse to start a context before a user gesture.
+- `src/audio/ambience.ts` — the room, fully synthesised (no audio files):
+  filtered-noise room tone, a 50 Hz transformer hum, and the CRT's
+  15625 Hz line whine. Deliberately sits below and above the music's
+  midrange so it doesn't muddy the track. Level knob is the
+  `createAmbience()` argument in `main.ts`. Note the whine is inaudible
+  to many adults by design, so nothing may depend on it being heard.
 - `src/audio/music.ts` — background music: `createLoopingMusic(url)`
   loads a track with the Web Audio API and crossfades the tail of each
   play-through into the head of the next, so an AI-generated track with
@@ -52,7 +62,14 @@ HTML/CSS/JS bundle with no app server.
   - `mesh.ts` — pure grid math (Coons patch): `buildGrid()`.
   - `screen.ts` — the Pixi app: renders screen content (boot log →
     desktop) to a texture, applies the CRT/Glow filters, maps it onto
-    the mesh.
+    the mesh. Also builds the **glass layer**: a second mesh on the same
+    geometry, screen-blended, carrying the tube's dark grey-green front
+    glass plus the room's reflections on it (`buildGlassTexture()`). It's
+    a separate mesh rather than more content because everything in
+    `content` goes through `CRTFilter`, and a reflection sits *on* the
+    glass, in front of the scanlines. Without it the screen reads as a
+    hole cut in the photo; the alpha of its base fill is the knob for
+    "too black" vs "too washed out".
   - `calibration.ts` — the calibration UI: dragging handles, keyboard
     shortcuts, the panel with the ready-to-paste code.
 - `src/hotspots/` — clickable scene objects (telescope, moon, posters,
@@ -75,8 +92,14 @@ HTML/CSS/JS bundle with no app server.
   - `constellations.ts` — the **single source of truth** for the sky
     view's content (`CONSTELLATIONS`, `PLANET`, `MOON`), as fractional
     coordinates within its virtual canvas.
-  - `skyView.ts` — builds the static starfield canvas, drives the
-    clip-path iris transition, and the mouse-parallax pan loop.
+  - `skyView.ts` — draws the sky fresh every frame in screen space,
+    drives the clip-path iris transition, the mouse-parallax pan, and
+    click-to-zoom. The child's-wonder layer lives here too: slow star
+    twinkle, halos on the brightest stars (one shared gradient sprite,
+    stamped — not ~1800 per-frame gradients), a Milky Way band of
+    biased-sample stars with soft violet clouds, an occasional shooting
+    star, and the spark that runs along a constellation's lines when you
+    click it. All of it is off under `prefers-reduced-motion`.
 - `design.md` — full design notes from the sessions: why we made the
   choices we made, what was tried and rejected, what's next.
 
@@ -98,12 +121,50 @@ are now bundled by the build, not loaded from a CDN at runtime).
 ## Key architectural rule: layers, not sprites
 
 The scene is a stack of layers (back to front): animated sky →
-`scene.png` → live overlays (moon glow, CRT screen) → **one global film
-grain + vignette layer on top of everything** (`.grain`/`.vignette` in
-`src/style.css`). Grain/vignette/color-grading are NEVER baked into a
-layer individually — always applied globally on top, so the photo,
-animations, and screen read as one recording. Don't break this rule when
-adding new visual elements.
+`scene.png` → live overlays (moon glow) → dust motes → **the grade
+stack** (`.bloom` → `.lens-soft` → `.grade` → `.lift`) → **the CRT
+screen** → hotspots → `.grain` → `.vignette` (all in `src/style.css`).
+Grain/vignette/color-grading are NEVER baked into a layer individually —
+always applied globally on top, so the photo, animations, and screen read
+as one recording. Don't break this rule when adding new visual elements.
+
+**The one exception is the CRT screen**, which sits above the grade and
+below grain/vignette. It's the only emissive surface in the scene: the
+grade is light the camera collected off the room, the screen makes its
+own. It matters most for `.bloom` — that's a blurred copy of `scene.png`,
+and in the photo the glass is a light grey (the monitor is off), so the
+halation put its brightest patch exactly on the screen and turned the
+phosphor black into flat grey. Anything emissive added later belongs in
+the same slot.
+
+### The grade stack (the "memory" look)
+
+All six live at the end of `#scene` in `index.html`, all
+`pointer-events: none`, in this order:
+
+- `.bloom` — a second, blurred copy of `scene.png`, screen-blended back
+  over itself (halation). The `contrast(2)` in its filter crushes the
+  shadows first so only highlights bleed. Very slow opacity breathe.
+- `.lens-soft` — `backdrop-filter: blur()` behind a radial mask: sharp
+  in the middle (the CRT and telescope stay readable), soft at the frame
+  edges, like an old lens.
+- `.grade` — `soft-light` split tone: cool from the window side, warm
+  from the room side.
+- `.lift` — `screen` wash that keeps the blacks off pure `#000` (the
+  "faded print" half of the look).
+- `.grain` / `.vignette` — as before; the vignette is tinted blue-violet
+  rather than neutral black.
+
+These are all cheap CSS and deliberately subtle. If a change makes the
+scene look washed out, `.bloom`'s opacity is almost always the knob.
+
+Related knob on the screen side: `CRTFilter`'s `noise` in
+`src/crt/screen.ts` is kept low (0.05). It's additive white noise, so
+turning it up lifts the tube's black into flat grey static and the
+phosphor colour dies with it. The screen's film grain comes from the
+global `.grain` layer like everything else; the CRT filter only supplies
+the shimmer that's specific to a tube, and the scanlines
+(`lineContrast`) carry the texture.
 
 ## The CRT screen — single source of truth for geometry
 
@@ -175,7 +236,14 @@ export const HOTSPOTS: Hotspot[] = [...]; // { id, label, points }, one polygon 
 ```
 
 Same pattern as `SKY_MASK`/`CORNERS`: this is the only place hotspot
-geometry is defined. `interaction.ts` renders one transparent `<button>`
+geometry is defined. The hotspots layer is the **last** child of `#scene` before
+`.grain`/`.vignette`, above both the grade stack and the CRT screen. That
+ordering is load-bearing: the hover highlight is a `backdrop-filter`, so
+it can only brighten what is painted *below* it, and the `computer`
+polygon is exactly the glass — with the screen on top the highlight was
+invisible there while every other hotspot still worked.
+
+`interaction.ts` renders one transparent `<button>`
 per hotspot, `clip-path`-ed to its polygon — the clip-path both draws the
 hover highlight (a `backdrop-filter: brightness()` glow scoped to that
 shape) and narrows the button's own hit-testing, so no manual
@@ -222,9 +290,8 @@ reading a caption.
   truth for what's in the sky (`CONSTELLATIONS`, `PLANET`, `MOON`, as
   fractional coordinates within the sky view's virtual canvas) — same
   "one file defines the geometry" pattern as `HOTSPOTS`/`SKY_MASK`.
-  Drawn once to a static canvas (no twinkle) sized ~2.4× the viewport,
-  then panned via a single CSS `transform` — cheap, and deliberately
-  calmer than the ambient twinkling background stars.
+  Redrawn every frame in screen space (the world is ~2.4× the viewport),
+  so both the ambient pan and the click-to-zoom stay crisp at any scale.
 - **Panning**: mouse-move parallax (not drag) — moving the mouse aims
   the "telescope." Lerped toward the target each frame rather than
   snapping, clamped to the canvas bounds.

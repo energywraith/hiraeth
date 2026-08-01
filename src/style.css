@@ -111,6 +111,75 @@ body.calibrating-hotspots .hotspots-layer {
   pointer-events: none;
 }
 
+/* ---- the "memory grade": global layers that turn the photo into a memory
+   of the photo. All of these sit above the scene and below .grain/.vignette,
+   never baked into an individual layer (see the layers-not-sprites rule). ---- */
+
+/* Halation: a blurred copy of the scene, screen-blended back on top of
+   itself, so bright things (moon, window, screen glow, the lamp-lit wall)
+   bleed softly into the dark around them — what old lenses and film stock
+   do, and what a sharp digital render never does on its own. The
+   contrast/brightness in the filter crush the shadows to black first, so
+   only the highlights survive the screen blend. Scaled up slightly so the
+   blur doesn't reveal transparent edges. */
+#dust { position: absolute; inset: 0; width: 100%; height: 100%; mix-blend-mode: screen; }
+.bloom {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+  transform: scale(1.06);
+  filter: blur(20px) brightness(1.05) contrast(2) saturate(1.15);
+  mix-blend-mode: screen;
+  opacity: .22;
+  animation: bloom-breathe 19s ease-in-out infinite;
+  -webkit-user-drag: none;
+  user-drag: none;
+}
+@keyframes bloom-breathe { 0%, 100% { opacity: .19; } 50% { opacity: .26; } }
+
+/* Old-lens softness: sharp in the middle, mushy toward the corners. The
+   radial mask keeps the CRT and the telescope crisp while everything at the
+   edge of the frame goes slightly out of focus, the way a remembered room
+   does. */
+.lens-soft {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  -webkit-backdrop-filter: blur(2.4px);
+  backdrop-filter: blur(2.4px);
+  -webkit-mask-image: radial-gradient(ellipse 62% 62% at 52% 46%, transparent 30%, #000 100%);
+  mask-image: radial-gradient(ellipse 62% 62% at 52% 46%, transparent 30%, #000 100%);
+}
+
+/* Split tone: cool moonlight from the window side, warm amber from the
+   room/lamp side. soft-light keeps it a grade, not a colour wash. */
+.grade {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  mix-blend-mode: soft-light;
+  background:
+    radial-gradient(80% 70% at 82% 24%, rgba(120, 170, 255, .34) 0%, rgba(120, 170, 255, 0) 62%),
+    radial-gradient(85% 75% at 14% 72%, rgba(255, 168, 84, .3) 0%, rgba(255, 168, 84, 0) 66%),
+    linear-gradient(180deg, rgba(90, 120, 200, .12), rgba(20, 14, 30, .26));
+}
+
+/* Lifted blacks: a faint violet wash that stops the shadows being pure #000.
+   This is the "faded print" half of the look — the single cheapest thing
+   that reads as old rather than new. */
+.lift {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  background:
+    linear-gradient(180deg, rgba(58, 48, 92, .07), rgba(38, 34, 72, .04)),
+    radial-gradient(70% 60% at 80% 26%, rgba(90, 120, 190, .06), transparent 70%);
+}
+
 .grain {
   position: absolute;
   inset: -50%;
@@ -129,7 +198,43 @@ body.calibrating-hotspots .hotspots-layer {
   75% { transform: translate(-4%, -4%); }
   100% { transform: translate(6%, 6%); }
 }
-.vignette { position: absolute; inset: 0; pointer-events: none; box-shadow: inset 0 0 280px 100px rgba(0, 0, 0, .68); }
+/* Tinted rather than neutral black — a cold blue-violet falloff reads as
+   night air, plain #000 reads as a mask sitting on top of the photo. */
+.vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  box-shadow: inset 0 0 280px 100px rgba(6, 5, 18, .7);
+}
+
+/* The only piece of chrome a visitor ever sees. Kept as quiet as it can be
+   while still being findable: dim phosphor text in the corner, brightening
+   on hover. Revealed by main.ts once the gate is dismissed, since there's
+   nothing to mute before that. */
+.mute {
+  position: fixed;
+  right: 16px;
+  bottom: 14px;
+  z-index: 46;
+  padding: 6px 4px;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  font: 600 10px/1 ui-monospace, monospace;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--phosphor);
+  opacity: .28;
+  transition: opacity .3s ease;
+}
+.mute:hover,
+.mute:focus-visible {
+  opacity: .8;
+  outline: none;
+}
+.mute .mute-off { display: none; }
+.mute[aria-pressed="true"] .mute-on { display: none; }
+.mute[aria-pressed="true"] .mute-off { display: inline; }
 
 /* ---- calibration handles ---- */
 .handle {
@@ -546,6 +651,6 @@ body.calibrating-hotspots .zoom-hint {
 .sky-view-caption strong { color: #9be7bd; font-style: normal; }
 
 @media (prefers-reduced-motion: reduce) {
-  .moon-glow, .grain, .flicker-in { animation: none; }
+  .moon-glow, .grain, .flicker-in, .bloom { animation: none; }
   .sky-view, .sky-view-close, .sky-view-caption { transition: none; }
 }

@@ -18,7 +18,15 @@ export interface SkyViewElements {
 // it with a CSS transform; that's simpler but CSS-scaling a static bitmap
 // blurs it the moment you zoom in, which is the whole point of the zoom.
 const SKY_SCALE = 2.4;
-const PAN_EASE = 0.06;
+// Time constant (ms) for the pan/zoom lerp — both ambient mouse parallax and
+// click-to-zoom ease toward their target at this rate. Framerate-independent
+// (see the dt-based use in tick()), unlike a flat per-frame multiplier,
+// which quietly assumes 60fps and drifts on any other display. Raised from
+// an earlier per-frame constant that worked out to ~270ms and read as a
+// snap-to rather than a drift — everything else in the sky view (the 1.2s
+// iris, the constellation spark) is slow on purpose, and the pan/zoom was
+// the one thing still moving at a different, faster tempo.
+const EASE_MS = 550;
 
 // The aspect ratio CONSTELLATIONS/MOON/PLANET's fractional coordinates were
 // laid out against. skyW/skyH follow the viewport's own (variable) aspect
@@ -49,11 +57,40 @@ const LABEL_ALPHA_ACTIVE = 1;
 // sharpness gain past what's visible; 2x is already crisp.
 const MAX_DPR = 2;
 
+// How long the spark takes to run along a constellation's lines when you
+// click it, and how long a shooting star lives. Both slow on purpose — the
+// sky view was designed calm from the start (see design.md).
+const REVEAL_SECONDS = 1.1;
+const METEOR_SECONDS = 1.5;
+const METEOR_GAP_MIN = 9000;
+const METEOR_GAP_MAX = 24000;
+
 interface Star {
   x: number;
   y: number;
   r: number;
   alpha: number;
+  /** Twinkle phase and speed. A star with `glow` also gets a soft halo. */
+  tw: number;
+  tws: number;
+  glow: boolean;
+}
+
+interface Nebula {
+  x: number;
+  y: number;
+  r: number;
+  color: string;
+}
+
+interface Meteor {
+  x: number;
+  y: number;
+  dx: number;
+  dy: number;
+  len: number;
+  /** 0-1 across METEOR_SECONDS. */
+  t: number;
 }
 
 // A clickable thing in the sky view: one of the named constellations, or
@@ -83,6 +120,22 @@ export function initSkyView(els: SkyViewElements): { open: (x: number, y: number
   const planetImg = new Image();
   planetImg.src = `${import.meta.env.BASE_URL}saturn.png`;
 
+  // One small radial-gradient sprite, drawn once and stamped per star. Real
+  // per-star gradients would mean ~1200 createRadialGradient calls a frame.
+  const glowSprite = document.createElement("canvas");
+  glowSprite.width = glowSprite.height = 32;
+  {
+    const gctx = glowSprite.getContext("2d");
+    if (gctx) {
+      const grd = gctx.createRadialGradient(16, 16, 0, 16, 16, 16);
+      grd.addColorStop(0, "rgba(234, 241, 255, 0.55)");
+      grd.addColorStop(0.35, "rgba(214, 228, 255, 0.16)");
+      grd.addColorStop(1, "rgba(214, 228, 255, 0)");
+      gctx.fillStyle = grd;
+      gctx.fillRect(0, 0, 32, 32);
+    }
+  }
+
   let built = false;
   let skyW = 0;
   let skyH = 0;
@@ -91,6 +144,11 @@ export function initSkyView(els: SkyViewElements): { open: (x: number, y: number
   let contentOffsetX = 0;
   let contentOffsetY = 0;
   let stars: Star[] = [];
+  let nebulas: Nebula[] = [];
+  let meteor: Meteor | null = null;
+  let nextMeteorAt = 0;
+  // 0-1 spark progress along the clicked constellation's lines.
+  let reveal = 0;
 
   // The sky-space point currently centered on screen, and the current zoom
   // scale — ambient parallax is just this at scale 1; clicking a
@@ -149,23 +207,112 @@ export function initSkyView(els: SkyViewElements): { open: (x: number, y: number
   // don't jump or re-roll every frame.
   function generateStars(): void {
     const count = Math.round((skyW * skyH) / 4200);
-    stars = Array.from({ length: count }, () => ({
-      x: Math.random() * skyW,
-      y: Math.random() * skyH,
-      r: Math.random() * 0.9 + 0.3,
-      alpha: Math.random() * 0.5 + 0.35,
-    }));
+    // A diagonal band of extra stars across the world — the Milky Way. Being
+    // able to find it is half of what makes a first look through a telescope
+    // land, and it costs nothing but a biased sample.
+    const bandCount = Math.round(count * 0.45);
+    const bandAt = (t: number): [number, number] => [t * skyW, skyH * (0.78 - t * 0.45) + (Math.random() - 0.5) * skyH * 0.22];
+
+    stars = Array.from({ length: count + bandCount }, (_, i) => {
+      const [bx, by] = bandAt(Math.random());
+      const inBand = i >= count;
+      return {
+        x: inBand ? bx : Math.random() * skyW,
+        y: inBand ? by : Math.random() * skyH,
+        r: inBand ? Math.random() * 0.5 + 0.2 : Math.random() * 0.9 + 0.3,
+        alpha: inBand ? Math.random() * 0.3 + 0.14 : Math.random() * 0.5 + 0.35,
+        tw: Math.random() * 6.28,
+        tws: Math.random() * 0.0016 + 0.0005,
+        glow: !inBand && Math.random() < 0.14,
+      };
+    });
+
+    // Soft violet/blue clouds along the same band. Only a handful, so these
+    // can stay real gradients rather than a stamped sprite.
+    nebulas = Array.from({ length: 5 }, (_, i) => {
+      const [x, y] = bandAt((i + 0.5) / 5);
+      return {
+        x,
+        y,
+        r: skyH * (0.22 + Math.random() * 0.16),
+        color: i % 2 ? "rgba(96, 118, 200, 0.055)" : "rgba(132, 104, 190, 0.05)",
+      };
+    });
   }
 
-  function renderStars(): void {
-    ctx!.fillStyle = "#eaf1ff";
+  function renderNebulas(): void {
+    for (const n of nebulas) {
+      const [x, y] = skyToScreen(n.x, n.y);
+      const r = n.r * viewScale;
+      const grd = ctx!.createRadialGradient(x, y, 0, x, y, r);
+      grd.addColorStop(0, n.color);
+      grd.addColorStop(1, "rgba(0, 0, 0, 0)");
+      ctx!.fillStyle = grd;
+      ctx!.beginPath();
+      ctx!.arc(x, y, r, 0, Math.PI * 2);
+      ctx!.fill();
+    }
+  }
+
+  function renderStars(t: number): void {
     for (const s of stars) {
       const [x, y] = skyToScreen(s.x, s.y);
-      ctx!.globalAlpha = s.alpha;
+      const a = reduce ? s.alpha : s.alpha * (0.62 + 0.38 * Math.sin(s.tw + t * s.tws));
+      ctx!.globalAlpha = a;
+      if (s.glow) {
+        const g = s.r * viewScale * 9;
+        ctx!.drawImage(glowSprite, x - g, y - g, g * 2, g * 2);
+      }
+      ctx!.fillStyle = "#eaf1ff";
       ctx!.beginPath();
       ctx!.arc(x, y, s.r * viewScale, 0, Math.PI * 2);
       ctx!.fill();
     }
+    ctx!.globalAlpha = 1;
+  }
+
+  // A wish, once every 9-24 seconds. Spawned in sky-space near the current
+  // view so it's actually on screen wherever the parallax has wandered to.
+  function spawnMeteor(now: number): void {
+    const angle = Math.PI * (0.15 + Math.random() * 0.2);
+    meteor = {
+      x: viewCX + (Math.random() - 0.7) * innerWidth,
+      y: viewCY - innerHeight * (0.15 + Math.random() * 0.35),
+      dx: Math.cos(angle),
+      dy: Math.sin(angle),
+      len: innerWidth * (0.22 + Math.random() * 0.2),
+      t: 0,
+    };
+    nextMeteorAt = now + METEOR_GAP_MIN + Math.random() * (METEOR_GAP_MAX - METEOR_GAP_MIN);
+  }
+
+  function renderMeteor(): void {
+    if (!meteor) return;
+    // Fades in over the first fifth of its life and out over the rest, so it
+    // never pops into or out of existence.
+    const fade = Math.min(1, meteor.t * 5) * (1 - meteor.t) ** 1.5;
+    const travel = meteor.t * meteor.len * 1.6;
+    const hx = meteor.x + meteor.dx * travel;
+    const hy = meteor.y + meteor.dy * travel;
+    const [x, y] = skyToScreen(hx, hy);
+    const tailLen = meteor.len * 0.5 * viewScale;
+    const tx = x - meteor.dx * tailLen;
+    const ty = y - meteor.dy * tailLen;
+
+    const grd = ctx!.createLinearGradient(x, y, tx, ty);
+    grd.addColorStop(0, `rgba(238, 245, 255, ${0.85 * fade})`);
+    grd.addColorStop(1, "rgba(207, 228, 255, 0)");
+    ctx!.strokeStyle = grd;
+    ctx!.lineWidth = 1.8 * Math.min(2, viewScale);
+    ctx!.lineCap = "round";
+    ctx!.beginPath();
+    ctx!.moveTo(x, y);
+    ctx!.lineTo(tx, ty);
+    ctx!.stroke();
+
+    ctx!.globalAlpha = fade;
+    const g = 10 * Math.min(2, viewScale);
+    ctx!.drawImage(glowSprite, x - g, y - g, g * 2, g * 2);
     ctx!.globalAlpha = 1;
   }
 
@@ -300,23 +447,58 @@ export function initSkyView(els: SkyViewElements): { open: (x: number, y: number
     els.captionEl.classList.add("showing-meaning");
   }
 
-  function drawConstellation(c: Constellation, active: boolean): void {
-    ctx!.strokeStyle = `rgba(155, 231, 189, ${active ? LINE_ALPHA_ACTIVE : LINE_ALPHA})`;
-    ctx!.lineWidth = (active ? 1.4 : 1) * viewScale;
+  // `progress` is how far the bright "spark" has run along this
+  // constellation's lines (1 = fully lit, only ever < 1 for the one you just
+  // clicked). The dim base shape is always drawn underneath, so the reveal
+  // reads as the constellation lighting up rather than being drawn from
+  // nothing — you can still see where it's going before it gets there, which
+  // is the difference between magic and a loading bar.
+  function drawConstellation(c: Constellation, active: boolean, progress: number): void {
+    const pts = c.stars.map(([fx, fy]) => skyToScreen(toSkyX(fx), toSkyY(fy)));
+
+    ctx!.strokeStyle = `rgba(155, 231, 189, ${LINE_ALPHA})`;
+    ctx!.lineWidth = viewScale;
     ctx!.beginPath();
     for (const [a, b] of c.lines) {
-      const [ax, ay] = c.stars[a];
-      const [bx, by] = c.stars[b];
-      ctx!.moveTo(...skyToScreen(toSkyX(ax), toSkyY(ay)));
-      ctx!.lineTo(...skyToScreen(toSkyX(bx), toSkyY(by)));
+      ctx!.moveTo(...pts[a]);
+      ctx!.lineTo(...pts[b]);
     }
     ctx!.stroke();
 
-    ctx!.fillStyle = "#eaf1ff";
-    for (const [fx, fy] of c.stars) {
-      const [x, y] = skyToScreen(toSkyX(fx), toSkyY(fy));
+    // How far along the chain each star sits, so stars light up as the spark
+    // reaches them instead of all at once.
+    const reached = new Set<number>();
+    if (active) {
+      const lens = c.lines.map(([a, b]) => Math.hypot(pts[b][0] - pts[a][0], pts[b][1] - pts[a][1]));
+      const total = lens.reduce((s, l) => s + l, 0) || 1;
+      let walked = progress * total;
+
+      ctx!.strokeStyle = `rgba(155, 231, 189, ${LINE_ALPHA_ACTIVE})`;
+      ctx!.lineWidth = 1.4 * viewScale;
+      ctx!.lineCap = "round";
       ctx!.beginPath();
-      ctx!.arc(x, y, (active ? STAR_RADIUS_ACTIVE : STAR_RADIUS) * viewScale, 0, Math.PI * 2);
+      for (let i = 0; i < c.lines.length && walked > 0; i++) {
+        const [a, b] = c.lines[i];
+        const f = Math.min(1, walked / (lens[i] || 1));
+        ctx!.moveTo(...pts[a]);
+        ctx!.lineTo(pts[a][0] + (pts[b][0] - pts[a][0]) * f, pts[a][1] + (pts[b][1] - pts[a][1]) * f);
+        reached.add(a);
+        if (f >= 1) reached.add(b);
+        walked -= lens[i];
+      }
+      ctx!.stroke();
+    }
+
+    for (let i = 0; i < pts.length; i++) {
+      const lit = reached.has(i);
+      const r = (lit ? STAR_RADIUS_ACTIVE : STAR_RADIUS) * viewScale;
+      if (lit) {
+        const g = r * 5;
+        ctx!.drawImage(glowSprite, pts[i][0] - g, pts[i][1] - g, g * 2, g * 2);
+      }
+      ctx!.fillStyle = "#eaf1ff";
+      ctx!.beginPath();
+      ctx!.arc(pts[i][0], pts[i][1], r, 0, Math.PI * 2);
       ctx!.fill();
     }
 
@@ -332,16 +514,22 @@ export function initSkyView(els: SkyViewElements): { open: (x: number, y: number
   // The single per-frame draw — see the SKY_SCALE comment for why
   // everything is redrawn fresh in screen-space rather than pre-rasterized
   // and CSS-transformed.
-  function render(): void {
+  function render(t = 0): void {
     ctx!.fillStyle = "#050a14";
     ctx!.fillRect(0, 0, innerWidth, innerHeight);
 
-    renderStars();
+    renderNebulas();
+    renderStars(t);
+    renderMeteor();
     renderMoon(hoveredTarget?.kind === "moon" || zoomedTarget?.kind === "moon");
     renderPlanet(hoveredTarget?.kind === "planet" || zoomedTarget?.kind === "planet");
     for (const c of CONSTELLATIONS) {
-      const active = sameTarget(hoveredTarget, { kind: "constellation", c }) || sameTarget(zoomedTarget, { kind: "constellation", c });
-      drawConstellation(c, active);
+      const target: Target = { kind: "constellation", c };
+      const clicked = sameTarget(zoomedTarget, target);
+      const active = sameTarget(hoveredTarget, target) || clicked;
+      // Only the clicked one animates its spark; hovering lights the shape
+      // straight away, so pointing at things stays responsive.
+      drawConstellation(c, active, clicked ? reveal : 1);
     }
   }
 
@@ -401,12 +589,15 @@ export function initSkyView(els: SkyViewElements): { open: (x: number, y: number
       targetCY = toSkyY(body.pos[1]);
     }
     zoomedTarget = t;
+    // Only constellations have lines for the spark to run along.
+    reveal = t.kind === "constellation" ? 0 : 1;
   }
 
   // Eases back out to plain (unscaled) parallax, resuming from wherever the
   // mouse currently sits rather than snapping to the sky's center.
   function zoomOut(): void {
     zoomedTarget = null;
+    reveal = 1;
     targetScale = 1;
     const maxX = Math.max(0, skyW - innerWidth);
     const maxY = Math.max(0, skyH - innerHeight);
@@ -445,13 +636,28 @@ export function initSkyView(els: SkyViewElements): { open: (x: number, y: number
     }
   }
 
-  function tick(): void {
+  let lastFrame = 0;
+
+  function tick(now: number): void {
     if (!isOpen) return;
-    const ease = reduce ? 1 : PAN_EASE;
+    const dt = lastFrame ? Math.min(now - lastFrame, 50) : 16;
+    lastFrame = now;
+
+    const ease = reduce ? 1 : 1 - Math.exp(-dt / EASE_MS);
     viewCX += (targetCX - viewCX) * ease;
     viewCY += (targetCY - viewCY) * ease;
     viewScale += (targetScale - viewScale) * ease;
-    render();
+
+    if (reveal < 1) reveal = Math.min(1, reveal + dt / (REVEAL_SECONDS * 1000));
+
+    if (meteor) {
+      meteor.t += dt / (METEOR_SECONDS * 1000);
+      if (meteor.t >= 1) meteor = null;
+    } else if (!reduce && now >= nextMeteorAt) {
+      spawnMeteor(now);
+    }
+
+    render(now);
     rafId = requestAnimationFrame(tick);
   }
 
@@ -473,6 +679,11 @@ export function initSkyView(els: SkyViewElements): { open: (x: number, y: number
     originX = x;
     originY = y;
     isOpen = true;
+    lastFrame = 0;
+    meteor = null;
+    // A short grace period so the first wish doesn't fly by while the iris is
+    // still opening.
+    nextMeteorAt = performance.now() + 3000 + Math.random() * 5000;
 
     const radius = coveringRadius(x, y);
     els.root.style.clipPath = `circle(0px at ${x}px ${y}px)`;
@@ -501,6 +712,8 @@ export function initSkyView(els: SkyViewElements): { open: (x: number, y: number
     els.canvas.style.cursor = "";
     hoveredTarget = null;
     zoomedTarget = null;
+    meteor = null;
+    reveal = 1;
     targetScale = 1;
     showAmbientCaption();
     if (rafId !== null) {

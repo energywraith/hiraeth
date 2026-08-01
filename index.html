@@ -53,10 +53,6 @@
     <div class="moon-glow"></div>
     <div id="cometWrap"><div class="comet" id="comet"></div></div>
 
-    <div id="pixiWrap"></div>
-
-    <div class="hotspots-layer" id="hotspots"></div>
-
     <svg class="quad-line" id="quadLine"><polygon points="" fill="none" stroke="#ffd23f66" stroke-width="1.5"/></svg>
     <div class="handle" data-i="0" data-label="TL"></div>
     <div class="handle" data-i="1" data-label="TR"></div>
@@ -67,9 +63,41 @@
 
     <svg class="quad-line hotspot-quad-line" id="hotspotQuadLine"></svg>
 
+    <canvas id="dust" class="layer"></canvas>
+
+    <!-- Global "memory grade" stack, all above the scene and below the
+         grain/vignette, per the layers-not-sprites rule in CLAUDE.md:
+         halation bloom → lens softness → split tone → lifted blacks. -->
+    <img class="bloom" src="/scene.png" alt="" aria-hidden="true" draggable="false">
+    <div class="lens-soft"></div>
+    <div class="grade"></div>
+    <div class="lift"></div>
+
+    <!-- The CRT sits ABOVE the grade stack on purpose. It's the one emissive
+         surface in the scene: the grade is light the camera collected off
+         the room, and the screen makes its own. It matters most for .bloom,
+         which is a blurred copy of scene.png — and in that photo the glass
+         is a light grey (the monitor is off), so the halation dumped its
+         brightest patch exactly onto the screen and turned the phosphor
+         black into flat grey. Still under .grain/.vignette, so it's part of
+         the same recording. -->
+    <div id="pixiWrap"></div>
+
+    <!-- Hotspots go last, above the screen: the `computer` polygon IS the
+         glass, so with the CRT painted over it its hover highlight (a
+         backdrop-filter, which only sees what's below it) was invisible.
+         Up here every hotspot brightens everything under it, screen
+         included. -->
+    <div class="hotspots-layer" id="hotspots"></div>
+
     <div class="grain"></div>
     <div class="vignette"></div>
   </div>
+
+  <button class="mute" id="mute" aria-label="Mute sound" aria-pressed="false" hidden>
+    <span class="mute-on">sound on</span>
+    <span class="mute-off">sound off</span>
+  </button>
 
   <div class="overlay" id="overlay">
     <div class="overlay-card">

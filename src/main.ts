@@ -1,10 +1,13 @@
 import "./style.css";
 import { initStarfield, initGateStarfield } from "./scene/starfield";
 import { initComet } from "./scene/comet";
+import { initDust } from "./scene/dust";
 import { initMaskCalibration } from "./scene/skyMaskCalibration";
 import { initScreen } from "./crt/screen";
 import { initCalibration, updateCalibrationOverlay } from "./crt/calibration";
 import { createLoopingMusic } from "./audio/music";
+import { createAmbience } from "./audio/ambience";
+import { isMuted, setMuted } from "./audio/bus";
 import { initHotspots } from "./hotspots/interaction";
 import { initOverlay } from "./hotspots/overlay";
 import { initHotspotCalibration } from "./hotspots/calibration";
@@ -19,13 +22,25 @@ const gateStars = initGateStarfield(document.getElementById("gateStars") as HTML
 addEventListener("resize", () => gateStars.refresh());
 
 const music = createLoopingMusic(`${import.meta.env.BASE_URL}luna-hiraeth.mp3`, 0.45);
+// The one knob for how present the room is under the music.
+const ambience = createAmbience(0.075);
+const muteBtn = document.getElementById("mute") as HTMLButtonElement;
+muteBtn.addEventListener("click", () => {
+  setMuted(!isMuted());
+  muteBtn.setAttribute("aria-pressed", String(isMuted()));
+});
+
 let entered = false;
 let screenHandle: { start(): void } | null = null;
 gate.addEventListener(
   "click",
   () => {
     gate.classList.add("hidden");
+    // Ambience is synthesised, so it starts instantly; the music has to
+    // fetch and decode a track first and may fail on its own.
+    ambience.start();
     music.start().catch((err) => console.warn("music failed to load:", err));
+    muteBtn.hidden = false;
     entered = true;
     screenHandle?.start();
   },
@@ -34,9 +49,11 @@ gate.addEventListener(
 
 const stars = initStarfield(document.getElementById("stars") as HTMLCanvasElement);
 const comet = initComet(document.getElementById("comet") as HTMLElement, document.getElementById("cometWrap") as HTMLElement);
+const dust = initDust(document.getElementById("dust") as HTMLCanvasElement);
 addEventListener("resize", () => {
   stars.refresh();
   comet.refresh();
+  dust.refresh();
 });
 
 const overlay = initOverlay({

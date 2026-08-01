@@ -48,6 +48,101 @@ The same rule applies to the vignette and any future color grading —
 anything meant to unify the mood sits at the top of the stack as a
 global layer.
 
+### The grade stack: making it read as a memory, not a render
+
+The base photo is sharp, neutrally lit and technically clean, which is
+exactly what makes it read as *a photo* rather than *a memory of a
+room*. Four global layers (all CSS, all above the scene, below the
+grain) fix that, and none of them touch the source image:
+
+1. **Halation** (`.bloom`) — a blurred, contrast-crushed copy of
+   `scene.png` screen-blended over itself, so the moon, the window and
+   the lamp-lit wall bleed softly into the dark. Old lenses and film
+   stock do this; digital renders don't, and the absence is most of why
+   a clean render feels cold.
+2. **Lens softness** (`.lens-soft`) — a masked backdrop blur: sharp in
+   the middle, mushy at the corners. A remembered room has one thing in
+   focus.
+3. **Split tone** (`.grade`) — cool blue from the window, warm amber
+   from the room, in `soft-light` so it grades rather than tints.
+4. **Lifted blacks** (`.lift`) — a faint violet `screen` wash. The
+   single cheapest thing that reads as "old" rather than "new": nothing
+   in a faded print is ever pure black.
+
+Plus **dust motes** (`src/scene/dust.ts`) drifting slowly upward through
+the moonlight, denser near the window. They cost almost nothing and are
+the only thing in the frame that says the room has *air* in it.
+
+### Why the CRT sits above the grade
+
+The first version of the grade put every layer over the whole scene,
+screen included, and the screen went grey-brown: a flat, hazy tube with
+pale text, more "TV that's off" than "phosphor in a dark room". Two
+causes, both worth remembering:
+
+- **`.bloom` was the main one.** In `scene.png` the monitor is off, so
+  the glass is a light grey rectangle. Blur that, crush the contrast, and
+  screen-blend it back on: the halation's single brightest patch lands
+  precisely on the screen. Halation belongs on light *sources*, and in
+  the photo the screen isn't one.
+- **`CRTFilter`'s noise was the other.** It's additive white noise, so at
+  the value we had (0.16) it lifted the tube's black into a field of grey
+  static. The project already has a rule that grain is global and never
+  per-layer; the CRT noise was quietly breaking it. Turned down to 0.05,
+  with `lineContrast` raised so the scanlines carry the texture instead.
+
+The fix for the first one is a layer-order rule, not a mask: the screen
+is the one emissive surface in the scene, so it renders *above* the grade
+and below grain/vignette. No geometry gets duplicated, which matters —
+`CORNERS` stays the only definition of where the glass is.
+
+### The glass layer
+
+Pulling the screen out of the grade fixed the colour but overshot: the
+tube went to near-pure black, which reads as a hole cut in the
+photograph. A real CRT never does that. Its front glass is dark
+grey-green, it's convex, and in a room with a lamp on one side and a full
+moon on the other it catches both.
+
+So there's a second mesh on the same geometry, screen-blended, carrying
+only the glass: an even dark grey-green floor, a warm sheen from the room
+side, a cool one from the window side, a top-down falloff for the
+curvature, and three very soft smudges (evenly clean glass reads as CGI;
+a monitor nobody has wiped since 1998 does not). It's a separate mesh and
+not more content inside the Pixi container, because everything in that
+container goes through `CRTFilter` — a reflection sits on the glass, in
+front of the scanlines, and must not be scanlined or curved twice.
+
+Tuning notes: the first pass at all of this was roughly 50% stronger and
+looked like a filter had been dropped on the page — the moon blew out and
+the curtains went cartoon-blue. The values that survived are all in the
+"you'd only notice if you toggled it" range. `.bloom`'s opacity is the
+knob that matters; everything else is secondary.
+
+### Making the eyepiece feel like being eight
+
+The sky view started out accurate: real J2000 star positions, correct
+relative geometry, clickable constellations with kid-friendly captions.
+Accurate, but it read as a star chart. Five additions turned it into what
+a child actually sees up there, none of which touch the astronomy:
+
+- **Twinkle**, slow and per-star. A dead-still sky reads as a diagram.
+- **Halos** on the brightest ~14% of stars. Drawn by stamping one shared
+  32px gradient sprite, because ~1800 `createRadialGradient` calls per
+  frame is not a thing you can do.
+- **The Milky Way**: a second, denser sample of fainter stars biased along
+  a diagonal band, with a few very soft violet clouds on the same path.
+  Finding it is half of what makes a first look through a telescope land.
+- **A shooting star** every 9 to 24 seconds. This one is purely for the
+  eight-year-old: nothing to click, nothing to learn, you just have to
+  happen to be looking.
+- **The spark**: clicking a constellation runs a bright line along its
+  segments in order, lighting each star as it reaches it, instead of
+  switching the whole shape on at once. The dim base shape stays visible
+  underneath, so you can see where the spark is heading. That difference
+  matters — revealing from nothing is a loading bar, lighting up
+  something already faintly there is magic.
+
 ### Why no window cutout (for now)
 
 The telescope and curtain folds cross the window in the original photo,

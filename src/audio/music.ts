@@ -1,3 +1,5 @@
+import { audioBus } from "./bus";
+
 export interface LoopingMusic {
   start(): Promise<void>;
   stop(): void;
@@ -54,10 +56,13 @@ export function createLoopingMusic(url: string, volume = 0.5): LoopingMusic {
   return {
     async start() {
       if (ctx) return;
-      ctx = new AudioContext();
+      // The context and the mute-able master live in ./bus — this module owns
+      // only its own level on that bus.
+      const bus = audioBus();
+      ctx = bus.ctx;
       masterGain = ctx.createGain();
       masterGain.gain.value = volume;
-      masterGain.connect(ctx.destination);
+      masterGain.connect(bus.master);
 
       const response = await fetch(url);
       const arrayBuffer = await response.arrayBuffer();
@@ -80,7 +85,9 @@ export function createLoopingMusic(url: string, volume = 0.5): LoopingMusic {
           // already stopped
         }
       }
-      ctx?.close();
+      // The context is shared, so this only tears down its own chain.
+      masterGain?.disconnect();
+      masterGain = null;
       ctx = null;
       buffer = null;
     },
