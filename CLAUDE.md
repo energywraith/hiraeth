@@ -96,10 +96,19 @@ HTML/CSS/JS bundle with no app server.
     drives the clip-path iris transition, the mouse-parallax pan, and
     click-to-zoom. The child's-wonder layer lives here too: slow star
     twinkle, halos on the brightest stars (one shared gradient sprite,
-    stamped — not ~1800 per-frame gradients), a Milky Way band of
+    stamped, not a per-frame gradient), a Milky Way band of
     biased-sample stars with soft violet clouds, an occasional shooting
     star, and the spark that runs along a constellation's lines when you
     click it. All of it is off under `prefers-reduced-motion`.
+    Performance: the vast majority of the starfield (thousands of stars
+    on a large viewport, since count scales with world area) is static,
+    so it's baked once into an offscreen `worldCanvas` on build/resize
+    (`bakeWorld()`) and blitted with a single `drawImage()` per frame;
+    only a small animated subset (`stars`, ~14% of the total,
+    `generateHighlightStars()`) still gets individual per-frame draws for
+    twinkle/halo. Drawing that many stars individually every frame was
+    the previous bottleneck — don't revert to a per-star loop for the
+    bulk starfield without re-baking it.
 - `design.md` — full design notes from the sessions: why we made the
   choices we made, what was tried and rejected, what's next.
 

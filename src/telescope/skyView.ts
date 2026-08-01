@@ -76,12 +76,10 @@ interface Star {
   glow: boolean;
 }
 
-interface Nebula {
-  x: number;
-  y: number;
-  r: number;
-  color: string;
-}
+// Fraction of the primary (non-band) star count that gets pulled out into
+// the animated `stars` overlay (see generateHighlightStars) instead of the
+// baked world canvas — see the worldCanvas comment below for why.
+const HIGHLIGHT_FRACTION = 0.14;
 
 interface Meteor {
   x: number;
@@ -120,8 +118,19 @@ export function initSkyView(els: SkyViewElements): { open: (x: number, y: number
   const planetImg = new Image();
   planetImg.src = `${import.meta.env.BASE_URL}saturn.png`;
 
+  // The static majority of the sky — nebulas plus most stars — painted once
+  // per build/resize instead of every frame. On a typical viewport that's
+  // several thousand stars (star count scales with world area, ~skyW*skyH);
+  // redrawing all of them individually every frame was the main cost behind
+  // the sky view feeling laggy. Baking them into one offscreen canvas turns
+  // that into a single drawImage() per frame in render(). Only a small
+  // animated subset (see `stars` below, ~HIGHLIGHT_FRACTION of the total)
+  // still needs a per-frame draw, for twinkle and the halo glow.
+  const worldCanvas = document.createElement("canvas");
+
   // One small radial-gradient sprite, drawn once and stamped per star. Real
-  // per-star gradients would mean ~1200 createRadialGradient calls a frame.
+  // per-star gradients would mean thousands of createRadialGradient calls a
+  // frame — this covers both the highlight stars below and the meteor.
   const glowSprite = document.createElement("canvas");
   glowSprite.width = glowSprite.height = 32;
   {
@@ -144,7 +153,6 @@ export function initSkyView(els: SkyViewElements): { open: (x: number, y: number
   let contentOffsetX = 0;
   let contentOffsetY = 0;
   let stars: Star[] = [];
-  let nebulas: Nebula[] = [];
   let meteor: Meteor | null = null;
   let nextMeteorAt = 0;
   // 0-1 spark progress along the clicked constellation's lines.
@@ -202,68 +210,84 @@ export function initSkyView(els: SkyViewElements): { open: (x: number, y: number
     return contentOffsetY + fy * contentH;
   }
 
-  // Star positions are rolled once (here) and kept stable in sky-space —
-  // only their on-screen projection changes as the view pans/zooms, so they
-  // don't jump or re-roll every frame.
-  function generateStars(): void {
-    const count = Math.round((skyW * skyH) / 4200);
-    // A diagonal band of extra stars across the world — the Milky Way. Being
-    // able to find it is half of what makes a first look through a telescope
-    // land, and it costs nothing but a biased sample.
-    const bandCount = Math.round(count * 0.45);
-    const bandAt = (t: number): [number, number] => [t * skyW, skyH * (0.78 - t * 0.45) + (Math.random() - 0.5) * skyH * 0.22];
-
-    stars = Array.from({ length: count + bandCount }, (_, i) => {
-      const [bx, by] = bandAt(Math.random());
-      const inBand = i >= count;
-      return {
-        x: inBand ? bx : Math.random() * skyW,
-        y: inBand ? by : Math.random() * skyH,
-        r: inBand ? Math.random() * 0.5 + 0.2 : Math.random() * 0.9 + 0.3,
-        alpha: inBand ? Math.random() * 0.3 + 0.14 : Math.random() * 0.5 + 0.35,
-        tw: Math.random() * 6.28,
-        tws: Math.random() * 0.0016 + 0.0005,
-        glow: !inBand && Math.random() < 0.14,
-      };
-    });
-
-    // Soft violet/blue clouds along the same band. Only a handful, so these
-    // can stay real gradients rather than a stamped sprite.
-    nebulas = Array.from({ length: 5 }, (_, i) => {
-      const [x, y] = bandAt((i + 0.5) / 5);
-      return {
-        x,
-        y,
-        r: skyH * (0.22 + Math.random() * 0.16),
-        color: i % 2 ? "rgba(96, 118, 200, 0.055)" : "rgba(132, 104, 190, 0.05)",
-      };
-    });
+  // A diagonal band across the world biasing both the baked and the
+  // highlight star passes below — the Milky Way. Being able to find it is
+  // half of what makes a first look through a telescope land, and it costs
+  // nothing but a biased sample. Shared so the two passes agree on where it
+  // runs; each call still rolls its own point along it.
+  function bandAt(t: number): [number, number] {
+    return [t * skyW, skyH * (0.78 - t * 0.45) + (Math.random() - 0.5) * skyH * 0.22];
   }
 
-  function renderNebulas(): void {
-    for (const n of nebulas) {
-      const [x, y] = skyToScreen(n.x, n.y);
-      const r = n.r * viewScale;
-      const grd = ctx!.createRadialGradient(x, y, 0, x, y, r);
-      grd.addColorStop(0, n.color);
+  // Bakes nebulas plus the static majority of the starfield into
+  // worldCanvas — see the worldCanvas comment above. Called once per
+  // build/resize, never per frame.
+  function bakeWorld(): void {
+    worldCanvas.width = skyW;
+    worldCanvas.height = skyH;
+    const wctx = worldCanvas.getContext("2d");
+    if (!wctx) return;
+
+    // Soft violet/blue clouds along the band. Only a handful, so these can
+    // stay real gradients rather than a stamped sprite — this only runs on
+    // build/resize, not per frame.
+    for (let i = 0; i < 5; i++) {
+      const [x, y] = bandAt((i + 0.5) / 5);
+      const r = skyH * (0.22 + Math.random() * 0.16);
+      const grd = wctx.createRadialGradient(x, y, 0, x, y, r);
+      grd.addColorStop(0, i % 2 ? "rgba(96, 118, 200, 0.055)" : "rgba(132, 104, 190, 0.05)");
       grd.addColorStop(1, "rgba(0, 0, 0, 0)");
-      ctx!.fillStyle = grd;
-      ctx!.beginPath();
-      ctx!.arc(x, y, r, 0, Math.PI * 2);
-      ctx!.fill();
+      wctx.fillStyle = grd;
+      wctx.beginPath();
+      wctx.arc(x, y, r, 0, Math.PI * 2);
+      wctx.fill();
     }
+
+    const count = Math.round((skyW * skyH) / 4200);
+    const bandCount = Math.round(count * 0.45);
+    wctx.fillStyle = "#eaf1ff";
+    for (let i = 0; i < count + bandCount; i++) {
+      const inBand = i >= count;
+      // The highlight fraction of the primary stars is drawn separately
+      // (generateHighlightStars) so it can animate — skip it here so it
+      // doesn't also get a static copy baked in underneath.
+      if (!inBand && Math.random() < HIGHLIGHT_FRACTION) continue;
+      const [x, y] = inBand ? bandAt(Math.random()) : [Math.random() * skyW, Math.random() * skyH];
+      const r = inBand ? Math.random() * 0.5 + 0.2 : Math.random() * 0.9 + 0.3;
+      wctx.globalAlpha = inBand ? Math.random() * 0.3 + 0.14 : Math.random() * 0.5 + 0.35;
+      wctx.beginPath();
+      wctx.arc(x, y, r, 0, Math.PI * 2);
+      wctx.fill();
+    }
+    wctx.globalAlpha = 1;
+  }
+
+  // The small subset of stars that keeps animating every frame (twinkle + a
+  // halo) — everything else lives in the baked worldCanvas instead. Rolled
+  // independently from bakeWorld's skip check, so this doesn't reproduce the
+  // exact same stars it skipped, just the same rough density.
+  function generateHighlightStars(): void {
+    const count = Math.round((skyW * skyH) / 4200);
+    const highlightCount = Math.round(count * HIGHLIGHT_FRACTION);
+    stars = Array.from({ length: highlightCount }, () => ({
+      x: Math.random() * skyW,
+      y: Math.random() * skyH,
+      r: Math.random() * 0.9 + 0.3,
+      alpha: Math.random() * 0.5 + 0.35,
+      tw: Math.random() * 6.28,
+      tws: Math.random() * 0.0016 + 0.0005,
+      glow: true,
+    }));
   }
 
   function renderStars(t: number): void {
+    ctx!.fillStyle = "#eaf1ff";
     for (const s of stars) {
       const [x, y] = skyToScreen(s.x, s.y);
       const a = reduce ? s.alpha : s.alpha * (0.62 + 0.38 * Math.sin(s.tw + t * s.tws));
       ctx!.globalAlpha = a;
-      if (s.glow) {
-        const g = s.r * viewScale * 9;
-        ctx!.drawImage(glowSprite, x - g, y - g, g * 2, g * 2);
-      }
-      ctx!.fillStyle = "#eaf1ff";
+      const g = s.r * viewScale * 9;
+      ctx!.drawImage(glowSprite, x - g, y - g, g * 2, g * 2);
       ctx!.beginPath();
       ctx!.arc(x, y, s.r * viewScale, 0, Math.PI * 2);
       ctx!.fill();
@@ -518,7 +542,13 @@ export function initSkyView(els: SkyViewElements): { open: (x: number, y: number
     ctx!.fillStyle = "#050a14";
     ctx!.fillRect(0, 0, innerWidth, innerHeight);
 
-    renderNebulas();
+    // The baked majority of the sky, blitted as one image at the current
+    // pan/zoom — see the worldCanvas comment above. skyToScreen is a pure
+    // scale+translate (no rotation), so the whole canvas maps to a single
+    // destination rect.
+    const [wx, wy] = skyToScreen(0, 0);
+    ctx!.drawImage(worldCanvas, wx, wy, skyW * viewScale, skyH * viewScale);
+
     renderStars(t);
     renderMeteor();
     renderMoon(hoveredTarget?.kind === "moon" || zoomedTarget?.kind === "moon");
@@ -551,7 +581,8 @@ export function initSkyView(els: SkyViewElements): { open: (x: number, y: number
   function build(): void {
     measureWorld();
     sizeCanvas();
-    generateStars();
+    bakeWorld();
+    generateHighlightStars();
 
     // Start centered on the virtual sky, mouse parallax adjusts from here.
     viewCX = targetCX = skyW / 2;
@@ -727,7 +758,8 @@ export function initSkyView(els: SkyViewElements): { open: (x: number, y: number
     if (!built) return;
     measureWorld();
     sizeCanvas();
-    generateStars();
+    bakeWorld();
+    generateHighlightStars();
     clampAmbientTarget();
     if (!isOpen) render();
   });

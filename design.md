@@ -143,6 +143,36 @@ a child actually sees up there, none of which touch the astronomy:
   matters — revealing from nothing is a loading bar, lighting up
   something already faintly there is magic.
 
+### Baking the starfield (performance)
+
+The wonder pass above added twinkle, halos, and a Milky Way band — all of
+which multiplied the star count and, worse, meant every star needed its
+own per-frame draw call (position projection, a `Math.sin` for twinkle,
+`globalAlpha` set, `arc`+`fill`, sometimes a `drawImage` for the halo).
+Star count scales with world area (`skyW*skyH`), so on a large monitor
+that's several thousand stars, 60 times a second, for as long as the sky
+view stays open — reported back as the view feeling laggy.
+
+Almost none of that per-star work matters: the vast majority of stars
+don't twinkle noticeably differently frame to frame, so redrawing them
+individually was paying a per-frame cost for a per-build result. Fixed by
+splitting the starfield in two:
+
+- **The static majority** (and the nebula clouds) gets painted once, on
+  build and on resize, into an offscreen `worldCanvas` — plain sky-space
+  pixels, no animation. `render()` blits the whole thing with one
+  `drawImage()`, position and zoom included (`skyToScreen` is a pure
+  scale+translate, so the whole canvas maps to a single destination
+  rect).
+- **A small highlight subset** (~14% of the primary stars, pulled out
+  during the bake so nothing is drawn twice) keeps animating individually
+  — this is where the twinkle and the halo glow actually live.
+
+Measured on a synthetic replay of the two approaches at 1920×1080: the
+old per-star loop cost ~2.6ms/frame just for stars+nebulas; the baked
+version costs ~0.47ms — about 5-6x, and the gap widens with viewport
+size since the baked half no longer scales with area at all.
+
 ### Why no window cutout (for now)
 
 The telescope and curtain folds cross the window in the original photo,
