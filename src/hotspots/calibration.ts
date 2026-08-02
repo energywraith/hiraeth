@@ -140,12 +140,13 @@ export function initHotspotCalibration(els: HotspotCalibrationElements, onChange
   els.select.addEventListener("change", () => selectHotspot(Number(els.select.value)));
 
   els.toggleBtn.addEventListener("click", () => {
-    // Mutually exclusive with the CRT + sky mask calibration modes — all
-    // three toggle the same handle/panel visuals and would otherwise fight
-    // over drag input.
-    document.body.classList.remove("calibrating", "calibrating-mask");
+    // Mutually exclusive with the CRT + sky mask + computer screen
+    // calibration modes — all toggle the same handle/panel visuals and
+    // would otherwise fight over drag input.
+    document.body.classList.remove("calibrating", "calibrating-mask", "calibrating-screen");
     document.getElementById("calib")?.classList.remove("active");
     document.getElementById("maskCalib")?.classList.remove("active");
+    document.getElementById("screenCalib")?.classList.remove("active");
     document.body.classList.toggle(ACTIVE_CLASS);
     els.toggleBtn.classList.toggle("active");
     if (document.body.classList.contains(ACTIVE_CLASS)) selectHotspot(current);

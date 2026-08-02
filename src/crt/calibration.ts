@@ -46,12 +46,13 @@ export function updateCalibrationOverlay(els: CalibrationElements): void {
 export function initCalibration(els: CalibrationElements, onChange: () => void): void {
   els.calibrateBtn.addEventListener("click", () => {
     // Mutually exclusive with the other calibration modes (see
-    // ../scene/skyMaskCalibration.ts and ../hotspots/calibration.ts) — all
-    // toggle the same handle/panel visuals and would otherwise fight over
-    // drag input.
-    document.body.classList.remove("calibrating-mask", "calibrating-hotspots");
+    // ../scene/skyMaskCalibration.ts, ../hotspots/calibration.ts, and
+    // ../computer/screenCalibration.ts) — all toggle the same handle/panel
+    // visuals and would otherwise fight over drag input.
+    document.body.classList.remove("calibrating-mask", "calibrating-hotspots", "calibrating-screen");
     document.getElementById("maskCalib")?.classList.remove("active");
     document.getElementById("hotspotCalib")?.classList.remove("active");
+    document.getElementById("screenCalib")?.classList.remove("active");
     document.body.classList.toggle("calibrating");
     els.calibrateBtn.classList.toggle("active");
     onChange();

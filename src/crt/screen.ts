@@ -2,11 +2,55 @@ import * as PIXI from "pixi.js";
 import { CRTFilter } from "pixi-filters/crt";
 import { GlowFilter } from "pixi-filters/glow";
 import { buildGrid } from "./mesh";
+import { DESKTOP_ICONS } from "../computer/desktopContent";
 
 const SRC_W = 560;
 const SRC_H = 448;
+// Boot log: a dark terminal glowing green, same as before — a brief,
+// classic "power-on" beat. Once it resolves to the desktop, both the
+// background and ink flip to the close-up desktop view's own palette (see
+// src/computer/desktopView.ts / style.css's .desktop-screen) so the tiny
+// tube preview and the jump-in-close screen read as one computer, not two.
+// Without this the two used to look like unrelated devices.
+const BOOT_BG = 0x030806;
+// GREEN is --phosphor from style.css (#9be7bd) — the one accent color
+// used everywhere on the site (gate label, button hovers, panel
+// headings). PAPER/INK are that same hue, just at opposite ends of the
+// lightness range, matching --mon-paper/--mon-ink in style.css's
+// .desktop-view — so this tiny tube preview and the close-up desktop
+// view (and the rest of the site's chrome) all read as one palette
+// instead of the monitor looking like an unrelated beige-green machine.
 const GREEN = 0x9be7bd;
-const DIM = 0x4f8f70;
+const PAPER = 0xe3f5ec;
+const INK = 0x16332a;
+// The glass mesh's screen-blended sheens (see buildGlassTexture) are tuned
+// against the dark boot screen; once booted (see the ticker below) they'd
+// wash the bright paper background out to a blown-out glare at full
+// strength, so it's dimmed. Named + reused in rebuildMesh() too: a plain
+// `let` set once in the ticker doesn't survive rebuildMesh() creating a
+// fresh mesh instance on resize/recalibration, which was overwriting it
+// back to full brightness the moment the window resized post-boot.
+const GLASS_ALPHA_BOOTED = 0.35;
+
+/** Rasterizes one of DESKTOP_ICONS' inline SVG glyphs into a Pixi texture,
+ * so the tiny tube preview draws the exact same icon art as the close-up
+ * desktop view instead of a redrawn approximation — one source of truth
+ * (desktopContent.ts) for both. `currentColor` in those SVGs resolves to
+ * plain black when rasterized standalone like this (no inherited `color`),
+ * which reads the same as INK at this size, so no recoloring needed. */
+async function loadIconTexture(svg: string): Promise<PIXI.Texture> {
+  // DESKTOP_ICONS' glyphs skip xmlns since they're embedded inline as
+  // innerHTML there, where the HTML parser namespaces bare <svg> tags for
+  // free — but decoded standalone here, without it the image silently
+  // fails (`EncodingError: The source image cannot be decoded`), which
+  // took down the rest of this async function (and with it, the whole
+  // screen: no filters, no ticker, no mesh) with no visible error.
+  const sized = svg.replace("<svg ", '<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" ');
+  const img = new Image();
+  img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(sized)}`;
+  await img.decode();
+  return PIXI.Texture.from(img);
+}
 
 /** The glass in front of the phosphor, as a texture drawn once on a 2D
  * canvas. A tube in a dark room is never pure black: the front glass is
@@ -111,7 +155,7 @@ export async function initScreen(scene: HTMLElement, pixiWrap: HTMLElement): Pro
     "CONNECT 56000",
     "",
     "> welcome home",
-    "> starfield.exe",
+    "> observatory.exe",
   ];
   const full = lines.join("\n");
   let i = 0;
@@ -121,40 +165,74 @@ export async function initScreen(scene: HTMLElement, pixiWrap: HTMLElement): Pro
   desk.visible = false;
   content.addChild(desk);
 
+  const deskMono: Partial<PIXI.TextStyleOptions> = { ...mono, fill: INK };
+
   const chrome = new PIXI.Graphics();
-  chrome.rect(20, 22, SRC_W - 40, 40).stroke({ width: 2, color: DIM });
-  chrome.rect(56, 110, SRC_W - 200, 210).stroke({ width: 2, color: DIM });
-  chrome.moveTo(56, 148).lineTo(SRC_W - 144, 148).stroke({ width: 2, color: DIM });
-  chrome.rect(20, SRC_H - 60, SRC_W - 40, 40).stroke({ width: 2, color: DIM });
+  chrome.rect(20, 22, SRC_W - 40, 40).stroke({ width: 2, color: INK });
+  chrome.rect(56, 110, SRC_W - 200, 210).stroke({ width: 2, color: INK });
+  chrome.moveTo(56, 148).lineTo(SRC_W - 144, 148).stroke({ width: 2, color: INK });
   desk.addChild(chrome);
 
   const bar = new PIXI.Text({
     text: "HIRAETH     moon: full",
-    style: { ...mono, fontSize: 20 },
+    style: { ...deskMono, fontSize: 20 },
   });
   bar.x = 34;
   bar.y = 32;
   desk.addChild(bar);
 
-  const win = new PIXI.Text({ text: "STARFIELD.EXE", style: { ...mono, fontSize: 20 } });
+  const win = new PIXI.Text({ text: "HIRAETH OBSERVATORY", style: { ...deskMono, fontSize: 18 } });
   win.x = 70;
-  win.y = 122;
+  win.y = 123;
   desk.addChild(win);
 
-  const body = new PIXI.Text({
-    text: "gazing...\n\n  *   .    *\n .    *   .   *\n   *    .   *  .",
-    style: { ...mono, fontSize: 20, lineHeight: 26 },
+  // Same four programs, same icon art, same labels as the close-up desktop
+  // view (see src/computer/desktopContent.ts) — this tiny, glowing tube
+  // preview and that jump-in-close screen are meant to read as the exact
+  // same computer, not a redrawn approximation of it. Grid geometry is
+  // hand-placed (Pixi has no flexbox) but every icon/label pixel comes from
+  // DESKTOP_ICONS, the same data desktopView.ts builds its icon buttons
+  // from — one source of truth either way.
+  const ICON_BOX = 42;
+  const ICON_COL_X = [96, 276];
+  const ICON_ROW_Y = [160, 240];
+  const iconTextures = await Promise.all(DESKTOP_ICONS.map((icon) => loadIconTexture(icon.glyph)));
+  const iconLabelStyle: Partial<PIXI.TextStyleOptions> = { ...deskMono, fontSize: 11 };
+  const labelMeasurer = new PIXI.Text({ text: "", style: iconLabelStyle });
+  DESKTOP_ICONS.forEach((icon, idx) => {
+    const bx = ICON_COL_X[idx % 2];
+    const by = ICON_ROW_Y[Math.floor(idx / 2)];
+
+    const box = new PIXI.Graphics().rect(bx, by, ICON_BOX, ICON_BOX).stroke({ width: 2, color: INK });
+    desk.addChild(box);
+
+    const sprite = new PIXI.Sprite(iconTextures[idx]);
+    sprite.x = bx + 6;
+    sprite.y = by + 6;
+    sprite.width = ICON_BOX - 12;
+    sprite.height = ICON_BOX - 12;
+    desk.addChild(sprite);
+
+    labelMeasurer.text = icon.label;
+    const label = new PIXI.Text({ text: icon.label, style: iconLabelStyle });
+    label.x = bx + ICON_BOX / 2 - labelMeasurer.width / 2;
+    label.y = by + ICON_BOX + 6;
+    desk.addChild(label);
   });
-  body.x = 72;
-  body.y = 162;
-  desk.addChild(body);
 
-  const clock = new PIXI.Text({ text: "[ start ]                 23:47", style: { ...mono, fontSize: 20 } });
-  clock.x = 34;
-  clock.y = SRC_H - 50;
-  desk.addChild(clock);
+  // Matches the close-up view's own prompt line exactly (see .desktop-
+  // prompt in style.css / desktopView.ts) — same blink cadence as the boot
+  // cursor above, just a separate text/state since it lives past booting.
+  const prompt = new PIXI.Text({ text: "A:\\>", style: { ...deskMono, fontSize: 18 } });
+  prompt.x = 34;
+  prompt.y = SRC_H - 44;
+  desk.addChild(prompt);
+  const promptCur = new PIXI.Text({ text: "_", style: { ...deskMono, fontSize: 18 } });
+  promptCur.x = prompt.x + prompt.width;
+  promptCur.y = prompt.y;
+  desk.addChild(promptCur);
 
-  const back = new PIXI.Graphics().rect(0, 0, SRC_W, SRC_H).fill(0x030806);
+  const back = new PIXI.Graphics().rect(0, 0, SRC_W, SRC_H).fill(BOOT_BG);
   content.addChildAt(back, 0);
 
   // `noise` is deliberately low. CRTFilter's noise is additive white noise:
@@ -199,6 +277,7 @@ export async function initScreen(scene: HTMLElement, pixiWrap: HTMLElement): Pro
     const newMesh = meshFor(W, H, contentRT);
     const newGlass = meshFor(W, H, glassTexture);
     newGlass.blendMode = "screen";
+    newGlass.alpha = booted ? GLASS_ALPHA_BOOTED : 1;
     for (const old of [mesh, glass]) {
       if (!old) continue;
       app.stage.removeChild(old);
@@ -247,10 +326,32 @@ export async function initScreen(scene: HTMLElement, pixiWrap: HTMLElement): Pro
           boot.visible = false;
           cur.visible = false;
           desk.visible = true;
+          back.clear().rect(0, 0, SRC_W, SRC_H).fill(PAPER);
+          // GlowFilter blooms outward from bright pixels — sized to a
+          // sparse line of text on black. The desk is a large bright
+          // rectangle instead, so left at the boot-phase strength it would
+          // radiate a strong green halo around the whole screen. Once
+          // booted the ink does the work, so the glow all but drops out.
+          glow.outerStrength = 0;
+          // CRTFilter's scanlines are contrast against the CONTENT, not an
+          // absolute darkening — over the near-black boot screen that reads
+          // as a faint texture, but over a large bright fill the same
+          // lineContrast reads as visible dark ripples (worse combined with
+          // curvature's own UV warp). Flattened once booted so the paper
+          // stays even; the scanline texture isn't missed once it's mostly
+          // covered by real UI chrome anyway.
+          crt.lineContrast = 0.08;
+          // The glass mesh's sheens (see buildGlassTexture) are screen-
+          // blended, i.e. additive toward white — tuned against a near-
+          // black boot screen, they wash the bright paper background out
+          // to a blown-out glare. Dimming the mesh itself (not rebuilding
+          // the texture) keeps the same physical-glass character, just
+          // scaled down to what a bright screen needs.
+          if (glass) glass.alpha = 0.35;
         }
       }
     } else {
-      clock.alpha = 0.82 + 0.18 * Math.abs(Math.sin(performance.now() * 0.002));
+      promptCur.visible = performance.now() % 1100 < 550;
     }
 
     app.renderer.render({ container: content, target: contentRT });

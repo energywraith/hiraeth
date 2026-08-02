@@ -12,6 +12,8 @@ import { initHotspots } from "./hotspots/interaction";
 import { initOverlay } from "./hotspots/overlay";
 import { initHotspotCalibration } from "./hotspots/calibration";
 import { initSkyView } from "./telescope/skyView";
+import { initDesktopView } from "./computer/desktopView";
+import { initScreenCalibration } from "./computer/screenCalibration";
 import { initCalibrationView } from "./calibrationView";
 
 const scene = document.getElementById("scene") as HTMLElement;
@@ -69,12 +71,29 @@ const skyView = initSkyView({
   closeBtn: document.getElementById("skyViewClose") as HTMLButtonElement,
   captionEl: document.getElementById("skyViewCaption") as HTMLElement,
 });
+const desktopView = initDesktopView({
+  root: document.getElementById("desktopView") as HTMLElement,
+  frame: document.getElementById("desktopFrame") as HTMLElement,
+  screenEl: document.getElementById("desktopScreen") as HTMLElement,
+  iconsEl: document.getElementById("desktopIcons") as HTMLElement,
+  windowEl: document.getElementById("desktopWindow") as HTMLElement,
+  windowTitleEl: document.getElementById("desktopWindowTitle") as HTMLElement,
+  windowBodyEl: document.getElementById("desktopWindowBody") as HTMLElement,
+  windowCloseBtn: document.getElementById("desktopWindowClose") as HTMLButtonElement,
+  closeBtn: document.getElementById("desktopViewClose") as HTMLButtonElement,
+  chromeCloseBtn: document.getElementById("desktopChromeClose") as HTMLButtonElement,
+});
 addEventListener("keydown", (e) => {
-  if (e.key === "Escape") skyView.close();
+  if (e.key === "Escape") {
+    skyView.close();
+    desktopView.close();
+  }
 });
 const hotspots = initHotspots(document.getElementById("hotspots") as HTMLElement, (id, title, body, image, e) => {
   if (id === "telescope") {
     skyView.open(e.clientX, e.clientY);
+  } else if (id === "computer") {
+    desktopView.open(e.clientX, e.clientY);
   } else {
     overlay.open(title, body, image);
   }
@@ -152,4 +171,27 @@ if (import.meta.env.DEV) {
   });
   addEventListener("resize", () => hotspotCalibration.update());
   hotspotCalibration.update();
+
+  const desktopFrame = document.getElementById("desktopFrame") as HTMLElement;
+  const screenCalibrationEls = {
+    frame: desktopFrame,
+    toggleBtn: document.getElementById("screenCalib") as HTMLButtonElement,
+    handles: [...document.querySelectorAll<HTMLElement>(".screen-handle")],
+    quad: document.querySelector<SVGPolygonElement>("#screenQuadLine polygon")!,
+    readout: document.getElementById("screenReadout") as HTMLTextAreaElement,
+    copyBtn: document.getElementById("screenCopy") as HTMLButtonElement,
+    resetBtn: document.getElementById("screenReset") as HTMLButtonElement,
+  };
+  const screenCalibration = initScreenCalibration(screenCalibrationEls, () => {
+    desktopView.updateScreenGeometry();
+  });
+  // There's nothing to see the handles against until the close-up view is
+  // open — toggling calibration on opens it automatically (registered
+  // after screenCalibration's own click handler, so the class is already
+  // up to date by the time this runs).
+  screenCalibrationEls.toggleBtn.addEventListener("click", () => {
+    if (document.body.classList.contains("calibrating-screen")) desktopView.open(innerWidth / 2, innerHeight / 2);
+  });
+  addEventListener("resize", () => screenCalibration.update());
+  screenCalibration.update();
 }

@@ -20,6 +20,7 @@
     <button class="btn" id="calib">calibrate</button>
     <button class="btn" id="maskCalib">mask</button>
     <button class="btn" id="hotspotCalib">hotspots</button>
+    <button class="btn" id="screenCalib">screen</button>
   </div>
   <div class="note zoom-hint">scroll to zoom · drag to pan · dblclick to reset view</div>
 
@@ -44,6 +45,13 @@
     <textarea id="hotspotReadout" readonly></textarea>
     <div class="row"><button class="btn" id="hotspotAddPoint">+ point</button><button class="btn" id="hotspotRemovePoint">− point</button></div>
     <div class="row"><button class="btn" id="hotspotCopy">copy</button><button class="btn" id="hotspotReset">reset</button></div>
+  </div>
+
+  <div class="panel" id="screenPanel">
+    <h4>Computer screen corners</h4>
+    <p>Opens the close-up computer view. Drag the 4 dots onto the monitor's glass corners. Click a dot, then use ← ↑ → ↓ (Shift = bigger) for fine nudges. Keys <b>1</b>/<b>2</b>/<b>3</b>/<b>4</b> = focus top/right/bottom/left edge, <b>0</b> = all. <b>[</b> / <b>]</b> = less/more bulge on the focused edge. Copy into <code>src/computer/screenMask.ts</code>.</p>
+    <textarea id="screenReadout" readonly></textarea>
+    <div class="row"><button class="btn" id="screenCopy">copy</button><button class="btn" id="screenReset">reset</button></div>
   </div>
 
   <div class="scene" id="scene">
@@ -117,6 +125,47 @@
       <canvas id="skyViewCanvas"></canvas>
     </div>
     <div class="sky-view-caption" id="skyViewCaption"></div>
+  </div>
+
+  <div class="desktop-view" id="desktopView">
+    <button class="desktop-view-close" id="desktopViewClose" aria-label="Close">×</button>
+    <div class="desktop-frame" id="desktopFrame">
+      <img class="desktop-photo" src="/scene-computer.png" alt="" draggable="false">
+
+      <svg class="quad-line screen-quad-line" id="screenQuadLine"><polygon points="" fill="none" stroke="#ffa94d99" stroke-width="1.5"/></svg>
+      <div class="screen-handle" data-i="0" data-label="TL"></div>
+      <div class="screen-handle" data-i="1" data-label="TR"></div>
+      <div class="screen-handle" data-i="2" data-label="BR"></div>
+      <div class="screen-handle" data-i="3" data-label="BL"></div>
+
+      <div class="desktop-screen" id="desktopScreen">
+        <div class="desktop-titlebar">
+          <span class="desktop-titlebar-icon"></span>
+          <span class="desktop-titlebar-title">HIRAETH OBSERVATORY</span>
+          <span class="desktop-titlebar-btns">
+            <span class="desktop-titlebar-btn" aria-hidden="true">?</span>
+            <button class="desktop-titlebar-btn" id="desktopChromeClose" aria-label="Close">×</button>
+          </span>
+        </div>
+
+        <span class="corner corner-tl"></span>
+        <span class="corner corner-tr"></span>
+        <span class="corner corner-bl"></span>
+        <span class="corner corner-br"></span>
+
+        <div class="desktop-icons" id="desktopIcons"></div>
+
+        <div class="desktop-window" id="desktopWindow" hidden>
+          <div class="desktop-window-bar">
+            <span id="desktopWindowTitle"></span>
+            <button class="desktop-window-close" id="desktopWindowClose" aria-label="Close window">×</button>
+          </div>
+          <div class="desktop-window-body" id="desktopWindowBody"></div>
+        </div>
+
+        <div class="desktop-prompt">A:\&gt;<span class="desktop-cursor">_</span></div>
+      </div>
+    </div>
   </div>
 
   <script type="module" src="/src/main.ts"></script>
